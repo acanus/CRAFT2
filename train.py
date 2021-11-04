@@ -1,0 +1,94 @@
+from lib import *
+from net import CRAFT_model
+# from net import *
+from datagen import *
+print(os.environ.get('BATCH_SIZE'))
+print(os.environ.get('DATASET_PATH'))
+parser = argparse.ArgumentParser()
+parser.add_argument('--input_size', type = int, default = 768) # kích thước đầu vào để đào tạo mạng
+parser.add_argument('--batch_size', type = int, default = os.environ.get('BATCH_SIZE')) # kích thước lô để đào tạo
+parser.add_argument('--init_learning_rate', type = float, default = 0.0001) # tốc độ học ban đầu
+parser.add_argument('--lr_decay_rate', type = float, default = 0.9) # tỷ lệ phân rã cho tỷ lệ học tập
+parser.add_argument('--lr_decay_steps', type = int, default = 25) # số bước mà sau đó tốc độ học được giảm dần theo tốc độ giảm dần
+parser.add_argument('--max_epochs', type = int, default = 20000) # số kỷ nguyên tối đa
+parser.add_argument('--checkpoint_path', type = str, default = 'tmp/checkpoint') # # đường dẫn đến một thư mục để lưu các điểm kiểm tra của mô hình trong quá trình đào tạo
+parser.add_argument('--gpu_list', type = str, default = '0')  # Danh sách gpu để sử dụng
+parser.add_argument('--model_name', type = str, default = 'resnet50')  # chọn model train
+# parser.add_argument('--model_name', type = str, default = 'vgg16')  # chọn model train
+parser.add_argument('--training_data_path', type = str, default = os.environ.get('DATASET_PATH')) # đường dẫn đến training data
+parser.add_argument('--suppress_warnings_and_error_messages', type = bool, default = True) # có hiển thị thông báo lỗi và cảnh báo trong quá trình đào tạo hay không (một số thông báo lỗi trong quá trình đào tạo dự kiến ​​sẽ xuất hiện do cách tạo các bản vá lỗi cho quá trình đào tạo)
+parser.add_argument('--load_weight', type = bool, default = False)
+FLAGS = parser.parse_args()
+
+def lr_decay(epoch):
+    return FLAGS.init_learning_rate * np.power(FLAGS.lr_decay_rate, epoch // FLAGS.lr_decay_steps)
+
+def main():
+    os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
+    
+     # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
+    if not os.path.exists(FLAGS.checkpoint_path):
+        os.mkdir(FLAGS.checkpoint_path)
+
+    train_data_generator = generator(FLAGS)
+    train_samples_count = count_samples(FLAGS)
+    train_steps = int(math.ceil(train_samples_count / FLAGS.batch_size))
+    print('đào tạo tổng số lô mỗi kỷ nguyên : {}'.format(train_steps))
+
+    # Khởi tạo mạng nơ-ron
+    print("[INFO] Biên dịch mô hình...")
+    craft = CRAFT_model(FLAGS.input_size, FLAGS.model_name)
+    # craft = get_model('vgg16')
+
+    # tạo đường dẫn lưu file
+    checkpoint_path = os.path.sep.join([FLAGS.checkpoint_path, "model_craft_%s-{epoch:04d}.ckpt"%(FLAGS.model_name)])
+
+    # tạo kiểm soát mô hình
+    lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_decay)
+    modelckpt = tf.keras.callbacks.ModelCheckpoint(filepath = checkpoint_path, save_freq = 1000 * FLAGS.batch_size,  save_weights_only = True, verbose = 1)
+
+    # Lưu trọng số bằng định dạng 'checkpoint_path'
+    #craft.save_weights(checkpoint_path.format(epoch = 0))
+    
+    # Hàm callbacks
+    callbacks = [lr_scheduler, modelckpt]
+
+    # Optimizer
+    optimizer = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
+
+    # Complie model
+    print("[INFO] Biên dịch mô hình...")
+    craft.compile(optimizer = optimizer, run_eagerly = True)
+    # craft.compile(optimizer = optimizer)
+    #craft.build(input_shape=(FLAGS.input_size,FLAGS.input_size,3))
+
+    if(FLAGS.load_weight == True):
+        #build model by fiting 1 epoch (to load weights)
+        H = craft.fit(train_data_generator,
+                    steps_per_epoch = 1,
+                    batch_size = FLAGS.batch_size,
+                    epochs = 1)
+        craft.load_weights(os.path.join(FLAGS.checkpoint_path,"model_craft_resnet50-0001.ckpt"))
+    # Huấn luyện mạng
+    print("[INFO] Huấn luyện mạng...")
+    H = craft.fit(train_data_generator,
+                steps_per_epoch = train_steps,
+                batch_size = FLAGS.batch_size,
+                epochs = FLAGS.max_epochs,
+                # validation_data = valid_data_generator,
+                # validation_steps = valid_steps,
+                callbacks = callbacks)
+    
+    # lưu lại lịch sử đào tạo
+    plt.figure(figsize = (10, 6))
+    plt.plot(H.history['loss'], color = 'black')
+    plt.title('model_craft_%s Loss'%(FLAGS.model_name))
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend(['loss'], loc = 'upper right')
+    plt.grid()
+    plt.savefig('model_craft_%s.png'%(FLAGS.model_name), dpi = 480, bbox_inches = 'tight')
+    plt.show()
+
+if __name__ == '__main__':
+    main()
