@@ -121,55 +121,50 @@ def procces_function(image, bbox, labels_text):
     
     return image, weight, target, weight_aff, target_aff
 
+class SynthTextDataGenerator(tf.keras.utils.Sequence):
+    def __init__(self, data_dir,input_size, batch_size=32, shuffle=True):
+        self.mat=scio.loadmat(os.path.join(data_dir, 'test_gt.mat'))
+        self.imnames=self.mat['imnames'][0]
+        self.txt = self.mat['txt'][0]
+        for no, i in enumerate(self.txt):
+            all_words = []
+            for j in i:
+                all_words += [k for k in ' '.join(j.split('\n')).split() if k != '']
+            self.txt[no] = all_words
+        self.charBB = self.mat['charBB'][0]
+        self.input_size=input_size
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.num_samples = len(self.imnames)
+        self.on_epoch_end()
 
-def count_samples(FLAGS):
-    return len(glob(os.path.join(FLAGS.training_data_path, "*", "*.jpg")))
+    def __len__(self):
+        return int(np.floor(self.num_samples / self.batch_size))
 
-def generator(FLAGS):
-    mat = scio.loadmat(os.path.join(FLAGS.training_data_path, 'gt.mat'))
-    print('load gt.mat')
-    # get information
-    imnames = mat['imnames'][0]
-    txt = mat['txt'][0]
-    for no, i in enumerate(txt):
-        all_words = []
-        for j in i:
-            all_words += [k for k in ' '.join(j.split('\n')).split() if k != '']
-        txt[no] = all_words
-    charBB = mat['charBB'][0]
-    epoch = 1
-    num = len(imnames)
-    index = [v for v in range(num)]
-    while True:
-        random.shuffle(index)
-        batch_image = []
-        batch_label = []
-        for i in index:
-            try:
-                image = plt.imread(os.path.join(FLAGS.training_data_path, imnames[i][0]))
-                tmp = image.copy()
-                bbox = charBB[i]
-                text = txt[i]
-                _, weight, target, weight_aff, target_aff = procces_function(tmp, bbox, text)
-                label = np.dstack((weight, weight_aff))
-                res_img, res_label = rand_augment(tmp, label)
-                res_img = cv2.resize(res_img, dsize = (FLAGS.input_size, FLAGS.input_size), interpolation = cv2.INTER_LINEAR)
-                #res_img = normalizeMeanVariance(res_img) //replace by preprocessing function
-                res_label = cv2.resize(res_label, (FLAGS.input_size // 2, FLAGS.input_size // 2), interpolation = cv2.INTER_NEAREST)
-                batch_image.append(res_img)
-                batch_label.append(res_label)
-                
-                if len(batch_image) == FLAGS.batch_size:
-                    yield (np.array(batch_image), np.array(batch_label))
-                    batch_image = []
-                    batch_label = []
-            except Exception as e:
-                import traceback
-                if not FLAGS.suppress_warnings_and_error_messages:
-                    traceback.print_exc()
-                continue
-        epoch += 1
+    def __getitem__(self, index):
+        indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
+        return self.__data_generation(indexes)
 
-# if __name__ == "__main__":
-#     heatmap = gen_gaussian()
-#     cv2.imwrite('heat.jpg', heatmap)
+    def on_epoch_end(self):
+        self.indexes = np.arange(self.num_samples)
+        if self.shuffle:
+            np.random.shuffle(self.indexes)
+
+    def __data_generation(self, indexes):
+        X = []
+        Y = []
+        for i, index in enumerate(indexes):
+            image = plt.imread(os.path.join(self.data_dir, self.imnames[index][0]))
+            tmp = image.copy()
+            bbox = self.charBB[index]
+            text = self.txt[index]
+            _, weight, target, weight_aff, target_aff = procces_function(tmp, bbox, text)
+            label = np.dstack((weight, weight_aff))
+            res_img, res_label = rand_augment(tmp, label)
+            res_img = cv2.resize(res_img, dsize = (self.input_size[0], self.input_size[1]), interpolation = cv2.INTER_LINEAR)
+            #res_img = normalizeMeanVariance(res_img) //replace by preprocessing function
+            res_label = cv2.resize(res_label, (self.input_size[0] // 2, self.input_size[1] // 2), interpolation = cv2.INTER_NEAREST)
+            X.append(res_img)
+            Y.append(res_label)
+        return np.array(X), np.array(Y)

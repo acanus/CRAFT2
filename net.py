@@ -35,7 +35,6 @@ def get_model(model_name):
         # VGG end
         # tage 6
         source = vgg16.get_layer('block5_conv3').output
-
         # tage 5
         x = tf.keras.layers.MaxPooling2D(3, strides = 1, padding = 'same', name = 'block5_pool')(source)                         # w/16 512
         x = tf.keras.layers.Conv2D(1024, kernel_size = 3, activation = "relu", padding = 'same', dilation_rate = 6)(x)           # w/16 1024
@@ -117,6 +116,48 @@ def get_model(model_name):
         base_model = tf.keras.models.Model(inputs = input_image, outputs = output, name = 'resnet50_unet_base')
         input = tf.keras.layers.Input(shape = (None, None, 3), name = 'main_image')
         model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'resnet50_unet')
+        # model = CRAFT_model(inputs = input_image, outputs = output, name = 'resnet50_unet')
+        return model
+    elif model_name == "mobilenet":
+        input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
+        
+        """ Pre-trained VGG16 Model """
+        mobilenet = tf.keras.applications.mobilenet_v2.MobileNetV2(input_tensor = input_image, weights = 'imagenet', include_top = False, pooling = None)
+        mobilenet.trainable = False
+
+        # resnet50 end
+        # tage 6
+        source = mobilenet.get_layer('out_relu').output
+
+        # tage 5
+        x = tf.keras.layers.MaxPooling2D(3, strides = 1, padding = 'same', name = 'block5_pool')(source)                         # w/32 512
+        x = tf.keras.layers.Conv2D(512, kernel_size = 3, activation = "relu", padding = 'same', dilation_rate = 6)(x)           # w/32 512
+        x = tf.keras.layers.Conv2D(512, kernel_size = 1, activation = "relu", padding = "same")(x)                              # w/32 512
+
+        # U-net start
+        x = tf.keras.layers.Concatenate()([x, source])      # w/32 2048 + 512
+        x = upconv(x, [512, 256])           # w/32 256
+        x = upsample(x)                     # w/16 256
+
+        x = tf.keras.layers.Concatenate()([x, mobilenet.get_layer('block_13_expand').output])      # w/16 256 + 1024
+        x = upconv(x, [256, 128])           # w/16 128
+        x = upsample(x)                     # w/8 128
+
+        x = tf.keras.layers.Concatenate()([x, mobilenet.get_layer('block_6_expand').output])     # w/8 128 + 512
+        x = upconv(x, [128, 64])           # w/8 64
+        x = upsample(x)                    # w/4 64
+
+        x = tf.keras.layers.Concatenate()([x, mobilenet.get_layer('block_3_expand').output])    # w/4 64 + 256
+        x = upconv(x, [64, 32])            # w/4 64
+        x = upsample(x)                    # w/2 32
+
+        # feature
+        output = Conv_cls(x, 2)
+
+        preprocess_layer = tf.keras.applications.mobilenet_v2.preprocess_input
+        base_model = tf.keras.models.Model(inputs = input_image, outputs = output, name = 'mobilenet_unet_base')
+        input = tf.keras.layers.Input(shape = (None, None, 3), name = 'main_image')
+        model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'mobilenet_unet')
         # model = CRAFT_model(inputs = input_image, outputs = output, name = 'resnet50_unet')
         return model
 
