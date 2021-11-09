@@ -30,17 +30,22 @@ class MyCallback(tf.keras.callbacks.Callback):
     def __init__(self,test_generator) -> None:
         super().__init__()
         self.test_generator=test_generator
-        self.fig, (self.ax1, self.ax2,self.ax3) = plt.subplots(1, 3)
+        self.fig, (self.ax1, self.ax2,self.ax3,self.ax4,self.ax5) = plt.subplots(1, 5)
     def on_batch_end(self, batch, logs=None):
         if batch % 50 == 0:
-            data = np.expand_dims(self.test_generator.next()[0],0)
+            gt= self.test_generator.__getitem__(0)[1][0]
+            data = np.expand_dims(self.test_generator.__getitem__(10)[0][0],0)
             result=self.model.predict(data)
             self.ax1.imshow(data[0].astype('uint8'))
             self.ax2.imshow(result[0][:,:,0])
             self.ax3.imshow(result[0][:,:,1])
+            self.ax4.imshow(gt[:,:,0])
+            self.ax5.imshow(gt[:,:,1])
             self.ax1.set_title('Min: '+str(np.min(data[0]))+' Max: '+str(np.max(data[0])))
             self.ax2.set_title('Min: '+str(np.min(result[0][:,:,0]))+' Max: '+str(np.max(result[0][:,:,0])))
             self.ax3.set_title('Min: '+str(np.min(result[0][:,:,1]))+' Max: '+str(np.max(result[0][:,:,1])))
+            self.ax4.set_title('Ground Truth 1')
+            self.ax5.set_title('Ground Truth 2')
             plt.draw()
             plt.show(block=False)
             plt.pause(.001)
@@ -79,7 +84,7 @@ def main():
     #craft.save_weights(checkpoint_path.format(epoch = 0))
     
     # Hàm callbacks
-    callbacks = [lr_scheduler, modelckpt,MyCallback(test_generator)]
+    callbacks = [lr_scheduler, modelckpt,MyCallback(train_data_generator)]
 
     # Optimizer
     optimizer = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
