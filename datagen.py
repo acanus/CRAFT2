@@ -122,7 +122,8 @@ def procces_function(image, bbox, labels_text):
     return image, weight, target, weight_aff, target_aff
 
 class SynthTextDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, data_dir,input_size, batch_size=32, shuffle=True):
+    def __init__(self, data_dir,input_size, batch_size=32, shuffle=True,augmentation=False,):
+        self.augmentation = augmentation
         self.mat=scio.loadmat(os.path.join(data_dir, 'test_gt.mat'))
         self.imnames=self.mat['imnames'][0]
         self.txt = self.mat['txt'][0]
@@ -136,7 +137,7 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.shuffle = shuffle
-        self.num_samples = len(self.imnames)
+        self.num_samples = 5
         self.on_epoch_end()
 
     def __len__(self):
@@ -161,10 +162,13 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
             text = self.txt[index]
             _, weight, target, weight_aff, target_aff = procces_function(tmp, bbox, text)
             label = np.dstack((weight, weight_aff))
-            res_img, res_label = rand_augment(tmp, label)
+            if (self.augmentation):
+                res_img, res_label = rand_augment(tmp, label)
+            else:
+                res_img, res_label = tmp, label
             res_img = cv2.resize(res_img, dsize = (self.input_size[0], self.input_size[1]), interpolation = cv2.INTER_LINEAR)
             #res_img = normalizeMeanVariance(res_img) //replace by preprocessing function
             res_label = cv2.resize(res_label, (self.input_size[0] // 2, self.input_size[1] // 2), interpolation = cv2.INTER_NEAREST)
-            X.append(res_img)
+            X.append(res_img.astype(np.float32))
             Y.append(res_label)
         return np.array(X), np.array(Y)

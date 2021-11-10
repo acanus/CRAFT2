@@ -1,5 +1,5 @@
 from lib import *
-from loss import mse, MSE_OHEM_Loss
+from loss import mse, MSE_OHEM_Loss,weighted_bce
 
 def upconv(input, num_filters):
     x = tf.keras.layers.Conv2D(num_filters[0], 1, activation = "relu", padding = "same")(input)
@@ -160,8 +160,36 @@ def get_model(model_name):
         model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'mobilenet_unet')
         # model = CRAFT_model(inputs = input_image, outputs = output, name = 'resnet50_unet')
         return model
+    elif model_name == "mobilenet_unet":
+        input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
 
-
+        encoder = tf.keras.applications.mobilenet_v2.MobileNetV2(input_tensor = input_image,  weights="imagenet", include_top=False, alpha=0.35)
+        encoder.trainable=False
+        skip_connection_names = ["input_image", "block_1_expand_relu", "block_3_expand_relu", "block_6_expand_relu"]
+        encoder_output = encoder.get_layer("block_13_expand_relu").output  
+        f = [16, 32, 48, 64]
+        x = encoder_output
+        for i in range(1, len(skip_connection_names), 1):
+            x_skip = encoder.get_layer(skip_connection_names[-i]).output
+            x = tf.keras.layers.UpSampling2D((2, 2))(x)
+            x = tf.keras.layers.Concatenate()([x, x_skip])
+            
+            x = tf.keras.layers.Conv2D(f[-i], (3, 3), padding="same")(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation("relu")(x)
+            
+            x = tf.keras.layers.Conv2D(f[-i], (3, 3), padding="same")(x)
+            x = tf.keras.layers.BatchNormalization()(x)
+            x = tf.keras.layers.Activation("relu")(x)
+            
+        x = tf.keras.layers.Conv2D(2, (1, 1), padding="same")(x)
+        output = tf.keras.layers.Activation("sigmoid",name="main_output")(x)
+        
+        preprocess_layer = tf.keras.applications.mobilenet_v2.preprocess_input
+        base_model = tf.keras.models.Model(inputs = input_image, outputs = output, name = 'mobilenet_unet_base')
+        input = tf.keras.layers.Input(shape = (None, None, 3), name = 'main_image')
+        model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'mobilenet_unet')
+        return model
 
 class CRAFT_model(tf.keras.Model):
     def __init__(self, input_size = 512, model_name = "vgg16", **kwargs):
@@ -171,11 +199,11 @@ class CRAFT_model(tf.keras.Model):
         self.model = get_model(model_name)
 
     def train_step(self, data):
-        input_images, score = data
+        input_images, y_true = data
 
         with tf.GradientTape() as tape:
-            score_pred = self(input_images)
-            loss = MSE_OHEM_Loss(score_pred, score)
+            y_pred = self(input_images)
+            loss = MSE_OHEM_Loss(y_true, y_pred)
 
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))

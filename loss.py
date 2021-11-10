@@ -1,11 +1,20 @@
 from lib import *
-
-def MSE_OHEM_Loss(output_imgs, target_imgs):
+def weighted_bce(y_true, y_pred):
     loss_every_sample = []
-    batch_size = target_imgs.get_shape().as_list()[0]
+    batch_size = y_true.get_shape().as_list()[0]
     for i in range(batch_size):
-        output_img = tf.reshape(output_imgs[i], [-1])
-        target_img = tf.reshape(target_imgs[i], [-1])
+        weights = (y_true[i]*50) + 1.       
+        bce = tf.keras.losses.binary_crossentropy(y_true[i], y_pred[i])
+        weighted_bce = tf.math.reduce_mean(tf.math.multiply(weights[:,:,0],bce[0]))
+        weighted_bce1 = tf.math.reduce_mean(tf.math.multiply(weights[:,:,1],bce[1]))
+        loss_every_sample.append(weighted_bce*0.5+weighted_bce1*0.5)
+    return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
+def MSE_OHEM_Loss(y_true,y_pred):
+    loss_every_sample = []
+    batch_size = y_true.get_shape().as_list()[0]
+    for i in range(batch_size):
+        output_img = tf.reshape(y_pred[i], [-1])
+        target_img = tf.reshape(y_true[i], [-1])
         positive_mask = tf.cast(tf.greater(target_img, 0), dtype = tf.float32)
         sample_loss = tf.math.square(tf.math.subtract(output_img, target_img))
         
@@ -27,12 +36,12 @@ def MSE_OHEM_Loss(output_imgs, target_imgs):
 
     return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
 
-def mse(output_imgs, target_imgs): # vì dự liệu là chính xác từng ký tự nên confidence = 1... ta áp dụng tính mse
+def mse(y_true,y_pred): # vì dự liệu là chính xác từng ký tự nên confidence = 1... ta áp dụng tính mse
     loss_every_sample = []
-    batch_size = target_imgs.get_shape().as_list()[0]
+    batch_size = y_true.get_shape().as_list()[0]
     for i in range(batch_size):
-        output_img = tf.reshape(output_imgs[i], [-1])
-        target_img = tf.reshape(target_imgs[i], [-1])
+        output_img = tf.reshape(y_pred[i], [-1])
+        target_img = tf.reshape(y_true[i], [-1])
         loss = tf.math.square(tf.math.subtract(target_img, output_img))
         loss_every_sample.append(tf.math.reduce_mean(loss))
 

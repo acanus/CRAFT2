@@ -10,10 +10,10 @@ print(os.environ.get('MODEL_NAME'))
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_size', type = int, default = 768) # kích thước đầu vào để đào tạo mạng
 parser.add_argument('--batch_size', type = int, default = os.environ.get('BATCH_SIZE')) # kích thước lô để đào tạo
-parser.add_argument('--init_learning_rate', type = float, default = 0.01) # tốc độ học ban đầu
+parser.add_argument('--init_learning_rate', type = float, default = 0.1) # tốc độ học ban đầu
 parser.add_argument('--lr_decay_rate', type = float, default = 0.9) # tỷ lệ phân rã cho tỷ lệ học tập
 parser.add_argument('--lr_decay_steps', type = int, default = 25) # số bước mà sau đó tốc độ học được giảm dần theo tốc độ giảm dần
-parser.add_argument('--max_epochs', type = int, default = 20000) # số kỷ nguyên tối đa
+parser.add_argument('--epochs', type = int, default = 20000) # số kỷ nguyên tối đa
 parser.add_argument('--checkpoint_path', type = str, default = 'tmp/checkpoint') # # đường dẫn đến một thư mục để lưu các điểm kiểm tra của mô hình trong quá trình đào tạo
 parser.add_argument('--gpu_list', type = str, default = '0')  # Danh sách gpu để sử dụng
 parser.add_argument('--model_name', type = str, default = os.environ.get('MODEL_NAME'))  # chọn model train
@@ -30,10 +30,10 @@ class MyCallback(tf.keras.callbacks.Callback):
     def __init__(self,test_generator) -> None:
         super().__init__()
         self.test_generator=test_generator
-        self.fig, (self.ax1, self.ax2,self.ax3,self.ax4,self.ax5) = plt.subplots(1, 5)
+        self.fig, (self.ax1, self.ax2,self.ax3,self.ax4,self.ax5) = plt.subplots(1, 5,figsize=(12, 10))
     def on_batch_end(self, batch, logs=None):
         if batch % 50 == 0:
-            gt= self.test_generator.__getitem__(0)[1][0]
+            gt= self.test_generator.__getitem__(10)[1][0]
             data = np.expand_dims(self.test_generator.__getitem__(10)[0][0],0)
             result=self.model.predict(data)
             self.ax1.imshow(data[0].astype('uint8'))
@@ -84,7 +84,7 @@ def main():
     #craft.save_weights(checkpoint_path.format(epoch = 0))
     
     # Hàm callbacks
-    callbacks = [lr_scheduler, modelckpt,MyCallback(train_data_generator)]
+    callbacks = [lr_scheduler,modelckpt]
 
     # Optimizer
     optimizer = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
@@ -104,13 +104,39 @@ def main():
         craft.load_weights(os.path.join(FLAGS.checkpoint_path,"model_craft_resnet50-0001.ckpt"))
     # Huấn luyện mạng
     print("[INFO] Huấn luyện mạng...")
-    H = craft.fit(train_data_generator,
-                steps_per_epoch = None,
-                batch_size = None,
-                epochs = FLAGS.max_epochs,
-                # validation_data = valid_data_generator,
-                # validation_steps = valid_steps,
-                callbacks = callbacks)
+    fig, (ax1, ax2,ax3,ax4,ax5) = plt.subplots(1, 5,figsize=(12, 10))
+    for epoch in range(FLAGS.epochs):
+        H = craft.fit(train_data_generator,
+                    steps_per_epoch = None,
+                    batch_size = None,
+                    epochs = 1,
+                    callbacks = callbacks)
+        print('Epoch: {}/{}'.format(epoch + 1, FLAGS.epochs))
+        data=train_data_generator.__getitem__(4)
+        gt= data[1][0]
+        image = np.expand_dims(data[0][0],0)
+        result=craft.predict(image.astype('float32'))
+        ax1.imshow(image[0].astype('uint8'))
+        ax2.imshow(result[0][:,:,0])
+        ax3.imshow(result[0][:,:,1])
+        ax4.imshow(gt[:,:,0])
+        ax5.imshow(gt[:,:,1])
+        ax1.set_title('Min: '+str(np.min(image[0]))+' Max: '+str(np.max(image[0])))
+        ax2.set_title('Min: '+str(np.min(result[0][:,:,0]))+' Max: '+str(np.max(result[0][:,:,0])))
+        ax3.set_title('Min: '+str(np.min(result[0][:,:,1]))+' Max: '+str(np.max(result[0][:,:,1])))
+        ax4.set_title('Ground Truth 1')
+        ax5.set_title('Ground Truth 2')
+        plt.draw()
+        plt.show(block=False)
+        plt.pause(.001)
+    #craft.save_weights(checkpoint_path.format(epoch = epoch + 1))
+    # H = craft.fit(train_data_generator,
+    #             steps_per_epoch = None,
+    #             batch_size = None,
+    #             epochs = FLAGS.max_epochs,
+    #             # validation_data = valid_data_generator,
+    #             # validation_steps = valid_steps,
+    #             callbacks = callbacks)
     
     # lưu lại lịch sử đào tạo
     plt.figure(figsize = (10, 6))
