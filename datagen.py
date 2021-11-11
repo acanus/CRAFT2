@@ -120,7 +120,6 @@ def procces_function(image, bbox, labels_text):
     weight_aff, target_aff = generate_affinity(image_shape, bbox.copy(), labels_text)
     
     return image, weight, target, weight_aff, target_aff
-
 class SynthTextDataGenerator(tf.keras.utils.Sequence):
     def __init__(self, data_dir,input_size, batch_size=32, shuffle=True,augmentation=False,):
         self.augmentation = augmentation

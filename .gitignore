@@ -2,3 +2,5 @@
 *.pyo
 tmp/
 .env
+/result_image
+/results_weights
