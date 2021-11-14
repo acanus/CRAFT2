@@ -59,27 +59,14 @@ def get_model(model_name):
         
         # feature
         output = Conv_cls(x, 2)
+        model = tf.keras.models.Model(inputs = input_image, outputs = output, name = 'vgg16_unet')
 
-        # # region score
-        
-        # region_score = Conv2D(1, (1, 1), activation = tf.nn.sigmoid, name = 'region_score')(x)
-
-        # # affinity score
-        # affinity_score = Conv2D(1, (1, 1), activation = tf.nn.sigmoid, name = 'affinity_score')(x)
-
-        # output = concatenate([region_score, affinity_score], axis = 3, name = 'predict_scores')
-        preprocess_layer = tf.keras.applications.vgg16.preprocess_input
-        base_model = tf.keras.models.Model(inputs = input_image, outputs = output, name = 'vgg16_unet_base')
-        input = tf.keras.layers.Input(shape = (None, None, 3), name = 'main_image')
-        model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'vgg16_unet')
-        # model = CRAFT_model(inputs = input_image, outputs = output, name = 'vgg16_unet')
-        
         return model
 
     elif model_name == "resnet50":
         input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
         
-        """ Pre-trained VGG16 Model """
+        """ Pre-trained ResNet50 Model """
         resnet50 = tf.keras.applications.resnet50.ResNet50(input_tensor = input_image, weights = 'imagenet', include_top = False, pooling = None)
         resnet50.trainable = False
 
@@ -112,12 +99,9 @@ def get_model(model_name):
         # feature
         output = Conv_cls(x, 2)
 
-        preprocess_layer = tf.keras.applications.resnet50.preprocess_input
-        base_model = tf.keras.models.Model(inputs = input_image, outputs = output, name = 'resnet50_unet_base')
-        input = tf.keras.layers.Input(shape = (None, None, 3), name = 'main_image')
-        model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'resnet50_unet')
-        # model = CRAFT_model(inputs = input_image, outputs = output, name = 'resnet50_unet')
+        model = tf.keras.models.Model(inputs = input_image, outputs = output, name = 'resnet50_unet')
         return model
+
     elif model_name == "mobilenet":
         input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
         
@@ -160,6 +144,7 @@ def get_model(model_name):
         model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'mobilenet_unet')
         # model = CRAFT_model(inputs = input_image, outputs = output, name = 'resnet50_unet')
         return model
+
     elif model_name == "mobilenet_unet":
         input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
 
@@ -167,6 +152,7 @@ def get_model(model_name):
         encoder.trainable=False
         skip_connection_names = ["input_image", "block_1_expand_relu", "block_3_expand_relu", "block_6_expand_relu"]
         encoder_output = encoder.get_layer("block_13_expand_relu").output  
+        
         f = [16, 32, 48, 64]
         x = encoder_output
         for i in range(1, len(skip_connection_names), 1):
@@ -192,23 +178,29 @@ def get_model(model_name):
         return model
 
 class CRAFT_model(tf.keras.Model):
-    def __init__(self, input_size = 512, model_name = "vgg16", **kwargs):
+    def __init__(self, model_name = "vgg16", vis = False, **kwargs):
         super(CRAFT_model, self).__init__(**kwargs)
-
+        self.vis = vis
         self.compiled_loss = MSE_OHEM_Loss    
         self.model = get_model(model_name)
+        self.fig = plt.subplots(1, 5, figsize = (12, 10)) if vis else None
 
     def train_step(self, data):
-        input_images, y_true = data
+        input_images, scores = data
 
         with tf.GradientTape() as tape:
-            y_pred = self(input_images)
-            loss = MSE_OHEM_Loss(y_true, y_pred)
+            score_pred = self(input_images)
+            loss = MSE_OHEM_Loss(scores, score_pred)
+            opt = self.optimizer._decayed_lr('float32').numpy()
 
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
-        return {'loss': loss}
+        if self.vis:
+            with tf.experimental.async_scope():
+                self.__vis_data_train__(input_images[0].numpy(), scores[0].numpy(), score_pred[0].numpy())
+
+        return {'loss': loss, 'optimizer': opt}
 
     def call(self, inputs):
         if isinstance(inputs, tuple):
@@ -216,4 +208,17 @@ class CRAFT_model(tf.keras.Model):
         else:
             return self.model(inputs)
 
-
+    def __vis_data_train__(self, image, gt, pred_gt):      
+        self.fig[1][0].imshow(image.astype('uint8'))
+        self.fig[1][1].imshow(pred_gt[:,:,0])
+        self.fig[1][2].imshow(pred_gt[:,:,1])
+        self.fig[1][3].imshow(gt[:,:,0])
+        self.fig[1][4].imshow(gt[:,:,1])
+        self.fig[1][0].set_title('Min: '+str(np.min(image))+' Max: '+str(np.max(image)))
+        self.fig[1][1].set_title('Min: '+str(np.min(pred_gt[:,:,0]))+' Max: '+str(np.max(pred_gt[:,:,0])))
+        self.fig[1][2].set_title('Min: '+str(np.min(pred_gt[:,:,1]))+' Max: '+str(np.max(pred_gt[:,:,1])))
+        self.fig[1][3].set_title('Ground Truth 1')
+        self.fig[1][4].set_title('Ground Truth 2')
+        plt.draw()
+        plt.show(block = False)
+        plt.pause(.001)
