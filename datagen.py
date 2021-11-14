@@ -120,7 +120,7 @@ def procces_function(image, bbox, labels_text):
     return image, weight, target, weight_aff, target_aff
 
 class SynthTextDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, data_dir, input_size, batch_size = 32, shuffle = True, augmentation = False):
+    def __init__(self, data_dir, input_size, batch_size = 32, shuffle = True, augmentation = True):
         self.augmentation = augmentation
         self.mat = scio.loadmat(os.path.join(data_dir, 'gt.mat'))
         self.imnames = self.mat['imnames'][0]
@@ -156,7 +156,6 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
         for i, index in enumerate(indexes):
             image = plt.imread(os.path.join(self.data_dir, self.imnames[index][0]))
             image1 = cv2.imread(os.path.join(self.data_dir, self.imnames[index][0]))
-            cv2.imwrite("test_image_%s.jpg"%index, image1)
             tmp = image.copy()
             bbox = self.charBB[index]
             text = self.txt[index]

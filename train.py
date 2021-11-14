@@ -110,10 +110,9 @@ def main():
     if(FLAGS.load_weight == True):
         craft.load_weights(latest)
 
-    X, Y = train_data_generator.__getitem__(4)
     # Huấn luyện mạng
     print("[INFO] Huấn luyện mạng...")
-    H = craft.fit(X, Y,
+    H = craft.fit(train_data_generator,
                 steps_per_epoch = train_steps,
                 batch_size = FLAGS.batch_size,
                 epochs = FLAGS.epochs,
