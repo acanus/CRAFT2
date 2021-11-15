@@ -12,7 +12,7 @@ parser.add_argument('--checkpoint_path', type = str, default = 'tmp/checkpoint')
 parser.add_argument('--gpu_list', type = str, default = '0')  # Danh sách gpu để sử dụng
 parser.add_argument('--model_name', type = str, default = "resnet50")  # chọn model train
 # parser.add_argument('--model_name', type = str, default = 'vgg16')  # chọn model train
-parser.add_argument('--training_data_path', type = str, default = r"datasets\synthtext\SynthText") # đường dẫn đến training data
+parser.add_argument('--training_data_path', type = str, default = os.environ['DATASET_PATH']) # đường dẫn đến training data
 parser.add_argument('--suppress_warnings_and_error_messages', type = bool, default = True) # có hiển thị thông báo lỗi và cảnh báo trong quá trình đào tạo hay không (một số thông báo lỗi trong quá trình đào tạo dự kiến ​​sẽ xuất hiện do cách tạo các bản vá lỗi cho quá trình đào tạo)
 parser.add_argument('--load_weight', type = bool, default = False)
 parser.add_argument('--test_dir', type = str, default = 'images')
