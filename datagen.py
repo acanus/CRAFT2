@@ -26,21 +26,19 @@ def four_point_transform(image, pts):
     return warped
 
 def gen_gaussian():
-    sigma = 10
-    spread = 3
-    extent = int(spread * sigma)
-    gaussian_heatmap = np.zeros([2 * extent, 2 * extent], dtype = np.float32)
+    mean = 0
+    radius = 1.5
+    # a = 1 / (2 * np.pi * (radius ** 2))
+    a = 1.
+    x0, x1 = np.meshgrid(np.arange(-3, 3, 0.01), np.arange(-3, 3, 0.01))
+    x = np.append([x0.reshape(-1)], [x1.reshape(-1)], axis = 0).T
 
-    for i in range(2 * extent):
-        for j in range(2 * extent):
-            gaussian_heatmap[i, j] = 1 / 2 / np.pi / (sigma ** 2) * np.exp(
-                -1 / 2 * ((i - spread * sigma - 0.5) ** 2 + (j - spread * sigma - 0.5) ** 2) / (sigma ** 2))
-
-    gaussian_heatmap = (gaussian_heatmap / np.max(gaussian_heatmap) * 255).astype(np.uint8)
-
-    # threshhold_guassian = cv2.applyColorMap(gaussian_heatmap, cv2.COLORMAP_JET)
-    # cv2.imwrite(os.path.join("test_gaussian", 'test_gaussian.jpg'), threshhold_guassian)
-    
+    m0 = (x[:, 0] - mean) ** 2
+    m1 = (x[:, 1] - mean) ** 2
+    gaussian_heatmap = a * np.exp(-0.5 * (m0 + m1) / (radius ** 2))
+    gaussian_heatmap = gaussian_heatmap.reshape(len(x0), len(x1))
+    gaussian_heatmap = (gaussian_heatmap / np.max(gaussian_heatmap) * 255.0).astype(np.uint8)
+ 
     return gaussian_heatmap
 
 def add_character(image, bbox):
@@ -120,11 +118,12 @@ def procces_function(image, bbox, labels_text):
     weight_aff, target_aff = generate_affinity(image_shape, bbox.copy(), labels_text)
     
     return image, weight, target, weight_aff, target_aff
+
 class SynthTextDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, data_dir,input_size, batch_size=32, shuffle=True,augmentation=False,):
+    def __init__(self, data_dir, input_size, batch_size = 32, shuffle = True, augmentation = True):
         self.augmentation = augmentation
-        self.mat=scio.loadmat(os.path.join(data_dir, 'test_gt.mat'))
-        self.imnames=self.mat['imnames'][0]
+        self.mat = scio.loadmat(os.path.join(data_dir, 'gt.mat'))
+        self.imnames = self.mat['imnames'][0]
         self.txt = self.mat['txt'][0]
         for no, i in enumerate(self.txt):
             all_words = []
@@ -132,22 +131,22 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
                 all_words += [k for k in ' '.join(j.split('\n')).split() if k != '']
             self.txt[no] = all_words
         self.charBB = self.mat['charBB'][0]
-        self.input_size=input_size
+        self.input_size = input_size
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.shuffle = shuffle
-        self.num_samples = 5
+        self.num_samples = len(self.imnames)
+        self.indexes = np.arange(self.num_samples)
         self.on_epoch_end()
 
     def __len__(self):
-        return int(np.floor(self.num_samples / self.batch_size))
+        return math.ceil(self.num_samples / self.batch_size)
 
     def __getitem__(self, index):
         indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
         return self.__data_generation(indexes)
 
     def on_epoch_end(self):
-        self.indexes = np.arange(self.num_samples)
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
@@ -156,18 +155,24 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
         Y = []
         for i, index in enumerate(indexes):
             image = plt.imread(os.path.join(self.data_dir, self.imnames[index][0]))
+            image1 = cv2.imread(os.path.join(self.data_dir, self.imnames[index][0]))
             tmp = image.copy()
             bbox = self.charBB[index]
             text = self.txt[index]
             _, weight, target, weight_aff, target_aff = procces_function(tmp, bbox, text)
             label = np.dstack((weight, weight_aff))
-            if (self.augmentation):
+            if self.augmentation:
                 res_img, res_label = rand_augment(tmp, label)
             else:
                 res_img, res_label = tmp, label
-            res_img = cv2.resize(res_img, dsize = (self.input_size[0], self.input_size[1]), interpolation = cv2.INTER_LINEAR)
-            #res_img = normalizeMeanVariance(res_img) //replace by preprocessing function
-            res_label = cv2.resize(res_label, (self.input_size[0] // 2, self.input_size[1] // 2), interpolation = cv2.INTER_NEAREST)
-            X.append(res_img.astype(np.float32))
+            res_img = cv2.resize(res_img, dsize = (self.input_size[1], self.input_size[0]), interpolation = cv2.INTER_LINEAR)
+            res_img = normalizeMeanVariance(res_img)
+            res_label = cv2.resize(res_label, (self.input_size[1] // 2, self.input_size[0] // 2), interpolation = cv2.INTER_NEAREST)
+            X.append(res_img)
             Y.append(res_label)
         return np.array(X), np.array(Y)
+
+
+# if __name__ == "__main__":
+#     heatmap = gen_gaussian()
+#     cv2.imwrite('heat.jpg', heatmap)
