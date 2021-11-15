@@ -29,47 +29,8 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __call__(self, step):
         learning_rate_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(self. boundaries, self.learning_rate)
         return  learning_rate_fn(step)
-
-# class MyCallback(tf.keras.callbacks.Callback):
-#     def __init__(self, test_generator) -> None:
-#         super().__init__()
-#         self.test_generator = test_generator
-#         self.fig, (self.ax1, self.ax2, self.ax3, self.ax4, self.ax5) = plt.subplots(1, 5,figsize = (12, 10))
-#     def on_batch_end(self, batch, logs = None):
-#         if batch % 50 == 0:
-#             gt= self.test_generator.__getitem__(10)[1][0]
-#             data = np.expand_dims(self.test_generator.__getitem__(10)[0][0],0)
-#             result=self.model.predict(data)
-#             self.ax1.imshow(data[0].astype('uint8'))
-#             self.ax2.imshow(result[0][:,:,0])
-#             self.ax3.imshow(result[0][:,:,1])
-#             self.ax4.imshow(gt[:,:,0])
-#             self.ax5.imshow(gt[:,:,1])
-#             self.ax1.set_title('Min: '+str(np.min(data[0]))+' Max: '+str(np.max(data[0])))
-#             self.ax2.set_title('Min: '+str(np.min(result[0][:,:,0]))+' Max: '+str(np.max(result[0][:,:,0])))
-#             self.ax3.set_title('Min: '+str(np.min(result[0][:,:,1]))+' Max: '+str(np.max(result[0][:,:,1])))
-#             self.ax4.set_title('Ground Truth 1')
-#             self.ax5.set_title('Ground Truth 2')
-#             plt.draw()
-#             plt.show(block = False)
-#             plt.pause(.001)
-
-# def TestGenerator(test_dir):
-#     test_datagen = tf.keras.preprocessing.image.ImageDataGenerator()
-#     test_generator = test_datagen.flow_from_directory(
-#         test_dir,
-#         target_size = (FLAGS.input_size, FLAGS.input_size),
-#         batch_size = 1,
-#         shuffle = False,
-#         class_mode = None,
-#         color_mode = 'rgb',
-#         interpolation = 'bilinear')
-#     return test_generator
-
 def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
-
-    # test_generator = TestGenerator(FLAGS.test_dir) 
 
      # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
     if not os.path.exists(FLAGS.checkpoint_path):

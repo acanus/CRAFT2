@@ -166,7 +166,7 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
             else:
                 res_img, res_label = tmp, label
             res_img = cv2.resize(res_img, dsize = (self.input_size[1], self.input_size[0]), interpolation = cv2.INTER_LINEAR)
-            res_img = normalizeMeanVariance(res_img) # replace by preprocessing function
+            res_img = normalizeMeanVariance(res_img)
             res_label = cv2.resize(res_label, (self.input_size[1] // 2, self.input_size[0] // 2), interpolation = cv2.INTER_NEAREST)
             X.append(res_img)
             Y.append(res_label)

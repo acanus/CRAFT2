@@ -8,7 +8,6 @@ from datagen import normalizeMeanVariance
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_size', type = int, default = 512) # kích thước đầu vào để đào tạo mạng
 parser.add_argument('--model_name', type = str, default = 'resnet50')  # chọn model train
-# parser.add_argument('--model_name', type = str, default = 'vgg16')  # chọn model train
 parser.add_argument('--gpu_list', type = str, default = '0', help = 'danh sách gpu sử dụng')
 parser.add_argument('--text_threshold', default = 0.68, type = float, help = 'ngưỡng tin cậy văn bản')
 parser.add_argument('--low_text', default = 0.4, type = float, help = 'văn bản điểm giới hạn thấp')

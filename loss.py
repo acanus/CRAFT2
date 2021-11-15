@@ -1,14 +1,4 @@
 from lib import *
-def weighted_bce(y_true, y_pred):
-    loss_every_sample = []
-    batch_size = y_true.get_shape().as_list()[0]
-    for i in range(batch_size):
-        weights = (y_true[i]*50) + 1.       
-        bce = tf.keras.losses.binary_crossentropy(y_true[i], y_pred[i])
-        weighted_bce = tf.math.reduce_mean(tf.math.multiply(weights[:,:,0],bce[0]))
-        weighted_bce1 = tf.math.reduce_mean(tf.math.multiply(weights[:,:,1],bce[1]))
-        loss_every_sample.append(weighted_bce*0.5+weighted_bce1*0.5)
-    return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
 
 def MSE_OHEM_Loss(y_true, y_pred):
     loss_every_sample = []

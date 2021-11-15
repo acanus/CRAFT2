@@ -1,5 +1,4 @@
 from lib import *
-
 # borrowed from https://github.com/lengstrom/fast-style-transfer/blob/master/src/utils.py
 def get_files(img_dir):
     imgs, masks, xmls = list_files(img_dir)
