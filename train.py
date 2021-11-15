@@ -34,7 +34,7 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
 
-     # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
+    # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
     if not os.path.exists(FLAGS.checkpoint_path):
         os.mkdir(FLAGS.checkpoint_path)
     
