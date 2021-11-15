@@ -3,8 +3,6 @@ from net import CRAFT_model
 from datagen import *
 
 plt.ion()
-# from net import *
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_size', type = int, default = 512) # kích thước đầu vào để đào tạo mạng
 parser.add_argument('--batch_size', type = int, default = 2) # kích thước lô để đào tạo
