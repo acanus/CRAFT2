@@ -5,6 +5,7 @@ from file_utils import list_files
 from text_utils import get_result_img
 from datagen import normalizeMeanVariance
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_size', type = int, default = 512) # kích thước đầu vào để đào tạo mạng
 parser.add_argument('--model_name', type = str, default = 'resnet50')  # chọn model train

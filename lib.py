@@ -19,5 +19,3 @@ from glob import glob
 import time
 
 import tensorflow as tf
-
-
