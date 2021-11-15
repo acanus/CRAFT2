@@ -2,15 +2,23 @@ from lib import *
 from text_utils import get_result_img
 from augment import *
 
+# def normalizeMeanVariance(in_img, mean = (0.485, 0.456, 0.406), variance = (0.229, 0.224, 0.225)):
+#     # should be RGB order
+#     img = in_img.copy().astype(np.float32)
 
-def normalizeMeanVariance(in_img, mean = (0.485, 0.456, 0.406), variance = (0.229, 0.224, 0.225)):
-    # should be RGB order
-    img = in_img.copy().astype(np.float32)
-
-    img -= np.array([mean[0] * 255.0, mean[1] * 255.0, mean[2] * 255.0], dtype=np.float32)
-    img /= np.array([variance[0] * 255.0, variance[1] * 255.0, variance[2] * 255.0], dtype=np.float32)
+#     img -= np.array([mean[0] * 255.0, mean[1] * 255.0, mean[2] * 255.0], dtype=np.float32)
+#     img /= np.array([variance[0] * 255.0, variance[1] * 255.0, variance[2] * 255.0], dtype=np.float32)
     
-    return img
+#     return img
+
+# def unnormalizeMeanVariance(in_img, mean = (0.485, 0.456, 0.406), variance = (0.229, 0.224, 0.225)):
+#     # should be RGB order
+#     img = in_img.copy().astype(np.float32)
+
+#     img *= np.array([variance[0] * 255.0, variance[1] * 255.0, variance[2] * 255.0], dtype=np.float32)
+#     img += np.array([mean[0] * 255.0, mean[1] * 255.0, mean[2] * 255.0], dtype=np.float32)
+    
+#     return img
 
 def four_point_transform(image, pts):
     max_x, max_y = np.max(pts[:, 0]).astype(np.int32), np.max(pts[:, 1]).astype(np.int32)
@@ -156,7 +164,6 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
         Y = []
         for i, index in enumerate(indexes):
             image = plt.imread(os.path.join(self.data_dir, self.imnames[index][0]))
-            image1 = cv2.imread(os.path.join(self.data_dir, self.imnames[index][0]))
             tmp = image.copy()
             bbox = self.charBB[index]
             text = self.txt[index]
@@ -167,12 +174,10 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
             else:
                 res_img, res_label = tmp, label
             res_img = cv2.resize(res_img, dsize = (self.input_size[1], self.input_size[0]), interpolation = cv2.INTER_LINEAR)
-            res_img = normalizeMeanVariance(res_img)
             res_label = cv2.resize(res_label, (self.input_size[1] // 2, self.input_size[0] // 2), interpolation = cv2.INTER_NEAREST)
             X.append(res_img)
             Y.append(res_label)
         return np.array(X), np.array(Y)
-
 
 # if __name__ == "__main__":
 #     heatmap = gen_gaussian()

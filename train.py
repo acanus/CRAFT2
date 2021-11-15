@@ -3,8 +3,6 @@ from net import CRAFT_model
 from datagen import *
 
 plt.ion()
-
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_size', type = int, default = 512) # kích thước đầu vào để đào tạo mạng
 parser.add_argument('--batch_size', type = int, default = 2) # kích thước lô để đào tạo
@@ -18,7 +16,8 @@ parser.add_argument('--training_data_path', type = str, default = r"datasets\syn
 parser.add_argument('--suppress_warnings_and_error_messages', type = bool, default = True) # có hiển thị thông báo lỗi và cảnh báo trong quá trình đào tạo hay không (một số thông báo lỗi trong quá trình đào tạo dự kiến ​​sẽ xuất hiện do cách tạo các bản vá lỗi cho quá trình đào tạo)
 parser.add_argument('--load_weight', type = bool, default = False)
 parser.add_argument('--test_dir', type = str, default = 'images')
-parser.add_argument('--vis', type = bool, default = False)
+parser.add_argument('--vis', type = bool, default = True)
+parser.add_argument('--vis_num_batch_size', type = bool, default = 50) # cứ sao 50 batch size sẽ hiển thị kết quả train 1 lần
 FLAGS = parser.parse_args()
 
 class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -34,7 +33,7 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
 
-    # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
+     # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
     if not os.path.exists(FLAGS.checkpoint_path):
         os.mkdir(FLAGS.checkpoint_path)
     
@@ -45,7 +44,7 @@ def main():
 
     # Khởi tạo mạng nơ-ron
     print("[INFO] Biên dịch mô hình...")
-    craft = CRAFT_model(FLAGS.model_name, vis = FLAGS.vis)
+    craft = CRAFT_model(FLAGS.model_name, vis = FLAGS.vis, num_batch_size = FLAGS.vis_num_batch_size)
 
     # tạo đường dẫn lưu file
     checkpoint_path = os.path.sep.join([FLAGS.checkpoint_path, "model_craft_%s-{epoch:04d}.ckpt"%(FLAGS.model_name)])
@@ -71,7 +70,7 @@ def main():
     # Khôi phục lại trọng số mạng để train tiếp
     if(FLAGS.load_weight == True):
         craft.load_weights(latest)
-
+    
     # Huấn luyện mạng
     print("[INFO] Huấn luyện mạng...")
     H = craft.fit(train_data_generator,

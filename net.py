@@ -1,6 +1,6 @@
+from cv2 import imwrite
 from lib import *
-from loss import mse, MSE_OHEM_Loss
-
+from loss import MSE_OHEM_Loss
 
 def upconv(input, num_filters):
     x = tf.keras.layers.Conv2D(num_filters[0], 1, activation = "relu", padding = "same")(input)
@@ -28,9 +28,10 @@ def get_model(model_name):
 
     if model_name == "vgg16":
         input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
+        x = tf.keras.layers.experimental.preprocessing.Rescaling(scale = 1. / 255.0, offset = 0.0)(input_image)
         
         """ Pre-trained VGG16 Model """
-        vgg16 = tf.keras.applications.vgg16.VGG16(input_tensor = input_image, weights = 'imagenet', include_top = False, pooling = None)
+        vgg16 = tf.keras.applications.vgg16.VGG16(input_tensor = x, weights = 'imagenet', include_top = False, pooling = None)
         vgg16.trainable = False
 
         # VGG end
@@ -66,9 +67,10 @@ def get_model(model_name):
 
     elif model_name == "resnet50":
         input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
+        x = tf.keras.layers.experimental.preprocessing.Rescaling(scale = 1. / 255.0, offset = 0.0)(input_image)
         
         """ Pre-trained ResNet50 Model """
-        resnet50 = tf.keras.applications.resnet50.ResNet50(input_tensor = input_image, weights = 'imagenet', include_top = False, pooling = None)
+        resnet50 = tf.keras.applications.resnet50.ResNet50(input_tensor = x, weights = 'imagenet', include_top = False, pooling = None)
         resnet50.trainable = False
 
         # resnet50 end
@@ -104,16 +106,19 @@ def get_model(model_name):
         return model
 
 class CRAFT_model(tf.keras.Model):
-    def __init__(self, model_name = "vgg16", vis = False, **kwargs):
+    def __init__(self, model_name = "vgg16", vis = False, num_batch_size = 50, **kwargs):
         super(CRAFT_model, self).__init__(**kwargs)
         self.vis = vis
         self.compiled_loss = MSE_OHEM_Loss    
         self.model = get_model(model_name)
+        self.vis_num_batch_size = num_batch_size
+        self.num_batch_size = 0
         self.fig = plt.subplots(1, 5, figsize = (12, 10)) if vis else None
 
     def train_step(self, data):
         input_images, scores = data
 
+        self.num_batch_size += 1
         with tf.GradientTape() as tape:
             score_pred = self(input_images)
             loss = MSE_OHEM_Loss(scores, score_pred)
@@ -123,8 +128,10 @@ class CRAFT_model(tf.keras.Model):
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
         if self.vis:
-            with tf.experimental.async_scope():
-                self.__vis_data_train__(input_images[0].numpy(), scores[0].numpy(), score_pred[0].numpy())
+            if self.num_batch_size == self.vis_num_batch_size:
+                with tf.experimental.async_scope():
+                    self.__vis_data_train__(input_images[0].numpy(), scores[0].numpy(), score_pred[0].numpy())
+                    self.num_batch_size = 0
 
         return {'loss': loss, 'optimizer': opt}
 
