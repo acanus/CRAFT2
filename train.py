@@ -29,6 +29,7 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     def __call__(self, step):
         learning_rate_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(self. boundaries, self.learning_rate)
         return  learning_rate_fn(step)
+        
 def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
 
