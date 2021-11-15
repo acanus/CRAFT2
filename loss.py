@@ -26,6 +26,7 @@ def MSE_OHEM_Loss(y_true, y_pred):
         loss_every_sample.append(res)
 
     return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
+    
 
 def mse(y_true, y_pred): # vì dự liệu là chính xác từng ký tự nên confidence = 1... ta áp dụng tính mse
     loss_every_sample = []
