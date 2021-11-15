@@ -28,10 +28,10 @@ def get_model(model_name):
 
     if model_name == "vgg16":
         input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
-        x = tf.keras.layers.experimental.preprocessing.Rescaling(scale = 1. / 255.0, offset = 0.0)(input_image)
+        #x = tf.keras.layers.experimental.preprocessing.Rescaling(scale = 1. / 255.0, offset = 0.0)(input_image)
         
         """ Pre-trained VGG16 Model """
-        vgg16 = tf.keras.applications.vgg16.VGG16(input_tensor = x, weights = 'imagenet', include_top = False, pooling = None)
+        vgg16 = tf.keras.applications.vgg16.VGG16(input_tensor = input_image, weights = 'imagenet', include_top = False, pooling = None)
         vgg16.trainable = False
 
         # VGG end
@@ -80,7 +80,7 @@ def get_model(model_name):
 
     elif model_name == "resnet50":
         input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
-        x = tf.keras.layers.experimental.preprocessing.Rescaling(scale = 1. / 255.0, offset = 0.0)(input_image)
+        #x = tf.keras.layers.experimental.preprocessing.Rescaling(scale = 1. / 255.0, offset = 0.0)(input_image)
         
         """ Pre-trained VGG16 Model """
         resnet50 = tf.keras.applications.resnet50.ResNet50(input_tensor = input_image, weights = 'imagenet', include_top = False, pooling = None)
@@ -204,7 +204,6 @@ class CRAFT_model(tf.keras.Model):
     def train_step(self, data):
         input_images, y_true = data
 
-        self.num_batch_size += 1
         with tf.GradientTape() as tape:
             y_pred = self(input_images)
             loss = MSE_OHEM_Loss(y_true, y_pred)
