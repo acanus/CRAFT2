@@ -2,6 +2,7 @@ from lib import *
 from net import CRAFT_model
 import matplotlib.pyplot as plt
 plt.ion()
+
 # from net import *
 from datagen import *
 print(os.environ.get('BATCH_SIZE'))
@@ -22,10 +23,25 @@ parser.add_argument('--training_data_path', type = str, default = os.environ.get
 parser.add_argument('--suppress_warnings_and_error_messages', type = bool, default = True) # có hiển thị thông báo lỗi và cảnh báo trong quá trình đào tạo hay không (một số thông báo lỗi trong quá trình đào tạo dự kiến ​​sẽ xuất hiện do cách tạo các bản vá lỗi cho quá trình đào tạo)
 parser.add_argument('--load_weight', type = bool, default = False)
 parser.add_argument('--test_dir', type = str, default = 'images')
+
+parser.add_argument('--vis', type = bool, default = True)
+parser.add_argument('--vis_num_batch_size', type = bool, default = 50) # cứ sao 50 batch size sẽ hiển thị kết quả train 1 lần
+
 FLAGS = parser.parse_args()
 
-def lr_decay(epoch):
-    return FLAGS.init_learning_rate * np.power(FLAGS.lr_decay_rate, epoch // FLAGS.lr_decay_steps)
+# def lr_decay(epoch):
+#     return FLAGS.init_learning_rate * np.power(FLAGS.lr_decay_rate, epoch // FLAGS.lr_decay_steps)
+
+class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+
+    def __init__(self, boundaries, learning_rate):
+        self.boundaries = boundaries
+        self.learning_rate = learning_rate
+
+    def __call__(self, step):
+        learning_rate_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(self.boundaries, self.learning_rate)
+        return  learning_rate_fn(step)
+
 class MyCallback(tf.keras.callbacks.Callback):
     def __init__(self,test_generator) -> None:
         super().__init__()
@@ -62,32 +78,40 @@ def TestGenerator(test_dir):
     return test_generator
 def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list            
-    test_generator = TestGenerator(FLAGS.test_dir) 
+    # test_generator = TestGenerator(FLAGS.test_dir) 
+
      # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
     if not os.path.exists(FLAGS.checkpoint_path):
         os.mkdir(FLAGS.checkpoint_path)
+
     train_data_generator = SynthTextDataGenerator(FLAGS.training_data_path, (FLAGS.input_size,FLAGS.input_size), FLAGS.batch_size)
+    train_steps = len(train_data_generator)
     print('đào tạo tổng số lô mỗi kỷ nguyên : {}'.format(len(train_data_generator)))
+
     # Khởi tạo mạng nơ-ron
     print("[INFO] Biên dịch mô hình...")
-    craft = CRAFT_model(FLAGS.input_size, FLAGS.model_name)
+    craft = CRAFT_model(FLAGS.model_name, vis = FLAGS.vis, num_batch_size = FLAGS.vis_num_batch_size)
     # craft = get_model('vgg16')
 
     # tạo đường dẫn lưu file
     checkpoint_path = os.path.sep.join([FLAGS.checkpoint_path, "model_craft_%s-{epoch:04d}.ckpt"%(FLAGS.model_name)])
+    checkpoint_dir = os.path.dirname(checkpoint_path)
+    latest = tf.train.latest_checkpoint(checkpoint_dir)
 
     # tạo kiểm soát mô hình
-    lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_decay)
+    # lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_decay)
     modelckpt = tf.keras.callbacks.ModelCheckpoint(filepath = checkpoint_path, save_freq = 1000 * FLAGS.batch_size,  save_weights_only = True, verbose = 1)
     
     # Lưu trọng số bằng định dạng 'checkpoint_path'
-    #craft.save_weights(checkpoint_path.format(epoch = 0))
+    craft.save_weights(checkpoint_path.format(epoch = 0))
     
     # Hàm callbacks
-    callbacks = [lr_scheduler,modelckpt]
+    # callbacks = [lr_scheduler,modelckpt]
+    callbacks = [modelckpt]
 
     # Optimizer
-    optimizer = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
+    # optimizer = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
+    optimizer = tf.keras.optimizers.Adam(learning_rate = MyLRSchedule([50000, 200000], [FLAGS.init_learning_rate, FLAGS.init_learning_rate / 10. , FLAGS.init_learning_rate / 100.]))
 
     # Complie model
     print("[INFO] Biên dịch mô hình...")
@@ -95,40 +119,54 @@ def main():
     # craft.compile(optimizer = optimizer)
     #craft.build(input_shape=(FLAGS.input_size,FLAGS.input_size,3))
 
+    # if(FLAGS.load_weight == True):
+    #     #build model by fiting 1 epoch (to load weights)
+    #     H = craft.fit(train_data_generator,
+    #                 steps_per_epoch = 1,
+    #                 batch_size = FLAGS.batch_size,
+    #                 epochs = 1)
+    #     craft.load_weights(os.path.join(FLAGS.checkpoint_path,"model_craft_resnet50-0001.ckpt"))
+
+    # Khôi phục lại trọng số mạng để train tiếp
     if(FLAGS.load_weight == True):
-        #build model by fiting 1 epoch (to load weights)
-        H = craft.fit(train_data_generator,
-                    steps_per_epoch = 1,
-                    batch_size = FLAGS.batch_size,
-                    epochs = 1)
-        craft.load_weights(os.path.join(FLAGS.checkpoint_path,"model_craft_resnet50-0001.ckpt"))
+        craft.load_weights(latest)
+
+    X, Y = train_data_generator.__getitem__(4)
     # Huấn luyện mạng
     print("[INFO] Huấn luyện mạng...")
-    fig, (ax1, ax2,ax3,ax4,ax5) = plt.subplots(1, 5,figsize=(12, 10))
-    for epoch in range(FLAGS.epochs):
-        H = craft.fit(train_data_generator,
-                    steps_per_epoch = None,
-                    batch_size = None,
-                    epochs = 1,
-                    callbacks = callbacks)
-        print('Epoch: {}/{}'.format(epoch + 1, FLAGS.epochs))
-        data=train_data_generator.__getitem__(4)
-        gt= data[1][0]
-        image = np.expand_dims(data[0][0],0)
-        result=craft.predict(image.astype('float32'))
-        ax1.imshow(image[0].astype('uint8'))
-        ax2.imshow(result[0][:,:,0])
-        ax3.imshow(result[0][:,:,1])
-        ax4.imshow(gt[:,:,0])
-        ax5.imshow(gt[:,:,1])
-        ax1.set_title('Min: '+str(np.min(image[0]))+' Max: '+str(np.max(image[0])))
-        ax2.set_title('Min: '+str(np.min(result[0][:,:,0]))+' Max: '+str(np.max(result[0][:,:,0])))
-        ax3.set_title('Min: '+str(np.min(result[0][:,:,1]))+' Max: '+str(np.max(result[0][:,:,1])))
-        ax4.set_title('Ground Truth 1')
-        ax5.set_title('Ground Truth 2')
-        plt.draw()
-        plt.show(block=False)
-        plt.pause(.001)
+    H = craft.fit(X, Y,
+                steps_per_epoch = train_steps,
+                batch_size = FLAGS.batch_size,
+                epochs = FLAGS.epochs,
+                callbacks = callbacks)
+    
+    # # Huấn luyện mạng
+    # print("[INFO] Huấn luyện mạng...")
+    # fig, (ax1, ax2,ax3,ax4,ax5) = plt.subplots(1, 5,figsize=(12, 10))
+    # for epoch in range(FLAGS.epochs):
+    #     H = craft.fit(train_data_generator,
+    #                 steps_per_epoch = None,
+    #                 batch_size = None,
+    #                 epochs = 1,
+    #                 callbacks = callbacks)
+    #     print('Epoch: {}/{}'.format(epoch + 1, FLAGS.epochs))
+    #     data=train_data_generator.__getitem__(4)
+    #     gt= data[1][0]
+    #     image = np.expand_dims(data[0][0],0)
+    #     result=craft.predict(image.astype('float32'))
+    #     ax1.imshow(image[0].astype('uint8'))
+    #     ax2.imshow(result[0][:,:,0])
+    #     ax3.imshow(result[0][:,:,1])
+    #     ax4.imshow(gt[:,:,0])
+    #     ax5.imshow(gt[:,:,1])
+    #     ax1.set_title('Min: '+str(np.min(image[0]))+' Max: '+str(np.max(image[0])))
+    #     ax2.set_title('Min: '+str(np.min(result[0][:,:,0]))+' Max: '+str(np.max(result[0][:,:,0])))
+    #     ax3.set_title('Min: '+str(np.min(result[0][:,:,1]))+' Max: '+str(np.max(result[0][:,:,1])))
+    #     ax4.set_title('Ground Truth 1')
+    #     ax5.set_title('Ground Truth 2')
+    #     plt.draw()
+    #     plt.show(block=False)
+    #     plt.pause(.001)
     #craft.save_weights(checkpoint_path.format(epoch = epoch + 1))
     # H = craft.fit(train_data_generator,
     #             steps_per_epoch = None,

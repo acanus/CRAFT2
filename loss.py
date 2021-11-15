@@ -9,7 +9,8 @@ def weighted_bce(y_true, y_pred):
         weighted_bce1 = tf.math.reduce_mean(tf.math.multiply(weights[:,:,1],bce[1]))
         loss_every_sample.append(weighted_bce*0.5+weighted_bce1*0.5)
     return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
-def MSE_OHEM_Loss(y_true,y_pred):
+
+def MSE_OHEM_Loss(y_true, y_pred):
     loss_every_sample = []
     batch_size = y_true.get_shape().as_list()[0]
     for i in range(batch_size):
@@ -36,7 +37,7 @@ def MSE_OHEM_Loss(y_true,y_pred):
 
     return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
 
-def mse(y_true,y_pred): # vì dự liệu là chính xác từng ký tự nên confidence = 1... ta áp dụng tính mse
+def mse(y_true, y_pred): # vì dự liệu là chính xác từng ký tự nên confidence = 1... ta áp dụng tính mse
     loss_every_sample = []
     batch_size = y_true.get_shape().as_list()[0]
     for i in range(batch_size):
