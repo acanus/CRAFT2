@@ -6,10 +6,10 @@ def normalizeMeanVariance(in_img, mean = (0.485, 0.456, 0.406), variance = (0.22
     # should be RGB order
     img = in_img.copy().astype(np.float32)
 
-    img -= np.array([mean[0] * 255.0, mean[1] * 255.0, mean[2] * 255.0], dtype=np.float32)
-    img /= np.array([variance[0] * 255.0, variance[1] * 255.0, variance[2] * 255.0], dtype=np.float32)
+#     img *= np.array([variance[0] * 255.0, variance[1] * 255.0, variance[2] * 255.0], dtype=np.float32)
+#     img += np.array([mean[0] * 255.0, mean[1] * 255.0, mean[2] * 255.0], dtype=np.float32)
     
-    return img
+#     return img
 
 def four_point_transform(image, pts):
     max_x, max_y = np.max(pts[:, 0]).astype(np.int32), np.max(pts[:, 1]).astype(np.int32)
