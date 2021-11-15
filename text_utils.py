@@ -1,7 +1,6 @@
 from lib import *
 from file_utils import *
 
-
 def getDetBoxes_core(image_path, text_map, link_map, text_threshold, link_threshold, low_text, s = True):
     filename, file_ext = os.path.splitext(os.path.basename(image_path))
     

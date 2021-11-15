@@ -4,7 +4,6 @@ from datagen import *
 
 plt.ion()
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_size', type = int, default = 512) # kích thước đầu vào để đào tạo mạng
 parser.add_argument('--batch_size', type = int, default = 2) # kích thước lô để đào tạo
@@ -34,7 +33,7 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
 def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
 
-    # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
+     # kiểm tra xem đường dẫn điểm kiểm tra có tồn tại không
     if not os.path.exists(FLAGS.checkpoint_path):
         os.mkdir(FLAGS.checkpoint_path)
     

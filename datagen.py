@@ -2,7 +2,6 @@ from lib import *
 from text_utils import get_result_img
 from augment import *
 
-
 def normalizeMeanVariance(in_img, mean = (0.485, 0.456, 0.406), variance = (0.229, 0.224, 0.225)):
     # should be RGB order
     img = in_img.copy().astype(np.float32)

@@ -1,7 +1,6 @@
 from lib import *
 from loss import mse, MSE_OHEM_Loss
 
-
 def upconv(input, num_filters):
     x = tf.keras.layers.Conv2D(num_filters[0], 1, activation = "relu", padding = "same")(input)
     x = tf.keras.layers.BatchNormalization()(x)
