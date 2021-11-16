@@ -1,3 +1,4 @@
+from re import X
 from cv2 import imwrite
 from lib import *
 from loss import mse, MSE_OHEM_Loss,weighted_bce
@@ -165,8 +166,8 @@ def get_model(model_name):
         return model
     elif model_name == "mobilenet_unet":
         input_image = tf.keras.layers.Input(shape = (None, None, 3), name = 'input_image')
-
-        encoder = tf.keras.applications.mobilenet_v2.MobileNetV2(input_tensor = input_image,  weights="imagenet", include_top=False, alpha=0.35)
+        x = tf.keras.applications.mobilenet_v2.preprocess_input(input_image)
+        encoder = tf.keras.applications.mobilenet_v2.MobileNetV2(input_tensor = x,  weights="imagenet", include_top=False, alpha=0.35)
         encoder.trainable=False
         skip_connection_names = ["input_image", "block_1_expand_relu", "block_3_expand_relu", "block_6_expand_relu"]
         encoder_output = encoder.get_layer("block_13_expand_relu").output  
@@ -188,11 +189,11 @@ def get_model(model_name):
         x = tf.keras.layers.Conv2D(2, (1, 1), padding="same")(x)
         output = tf.keras.layers.Activation("sigmoid",name="main_output")(x)
         
-        preprocess_layer = tf.keras.applications.mobilenet_v2.preprocess_input
+        #preprocess_layer = tf.keras.applications.mobilenet_v2.preprocess_input
         base_model = tf.keras.models.Model(inputs = input_image, outputs = output, name = 'mobilenet_unet_base')
-        input = tf.keras.layers.Input(shape = (None, None, 3), name = 'main_image')
-        model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'mobilenet_unet')
-        return model
+        #input = tf.keras.layers.Input(shape = (None, None, 3), name = 'main_image')
+        #model = tf.keras.models.Model(inputs = input, outputs = base_model(preprocess_layer(input)), name = 'mobilenet_unet')
+        return base_model
 
     elif model_name == "vgg16_update_v1":
 

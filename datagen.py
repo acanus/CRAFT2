@@ -10,7 +10,13 @@ def normalizeMeanVariance(in_img, mean = (0.485, 0.456, 0.406), variance = (0.22
 #     img += np.array([mean[0] * 255.0, mean[1] * 255.0, mean[2] * 255.0], dtype=np.float32)
     
 #     return img
-
+def get_gaussian_heatmap(size=512, distanceRatio=3.34):
+    v = np.abs(np.linspace(-size / 2, size / 2, num=size))
+    x, y = np.meshgrid(v, v)
+    g = np.sqrt(x**2 + y**2)
+    g *= distanceRatio / (size / 2)
+    g = np.exp(-(1 / 2) * (g**2))    
+    return g.clip(0, 1)
 def four_point_transform(image, pts):
     max_x, max_y = np.max(pts[:, 0]).astype(np.int32), np.max(pts[:, 1]).astype(np.int32)
 
@@ -22,6 +28,16 @@ def four_point_transform(image, pts):
 
     M = cv2.getPerspectiveTransform(dst, pts)
     warped = cv2.warpPerspective(image, M, (max_x, max_y))
+    
+    return warped
+def transform_heatmap(heatmap, box):
+    max_x, max_y = np.max(box[:, 0]).astype(np.int32), np.max(box[:, 1]).astype(np.int32)
+
+    dst = np.array([[0, 0], [heatmap.shape[1], 0], [heatmap.shape[1], heatmap.shape[0]],
+                    [0, heatmap.shape[0]]]).astype('float32')
+
+    M = cv2.getPerspectiveTransform(dst, box)
+    warped = cv2.warpPerspective(heatmap, M, (max_x, max_y))
     
     return warped
 
@@ -58,6 +74,22 @@ def add_character(image, bbox):
                                                                        start_col:end_col - top_left[0]]
 
     return image
+def add_character_1(image,heatmap, bbox):
+    top_left = np.array([np.min(bbox[:, 0]), np.min(bbox[:, 1])]).astype(np.int32)
+    if np.any(bbox < 0) or np.any(bbox[:, 0] > image.shape[1]) or np.any(bbox[:, 1] > image.shape[0]):	
+        return image
+    bbox -= top_left[None, :]
+    transformed = transform_heatmap(heatmap, bbox.astype(np.float32))
+
+    start_row = max(top_left[1], 0) - top_left[1]
+    start_col = max(top_left[0], 0) - top_left[0]
+    end_row = min(top_left[1] + transformed.shape[0], image.shape[0])
+    end_col = min(top_left[0] + transformed.shape[1], image.shape[1])
+
+    image[max(top_left[1], 0):end_row, max(top_left[0], 0):end_col] += transformed[start_row:end_row - top_left[1],
+                                                                       start_col:end_col - top_left[0]]
+
+    return image
 
 def generate_target(image_size, character_bbox):
     '''Bản đồ nhiệt đặc tính tạo ra các ký tự của toàn bộ bức tranh'''
@@ -71,7 +103,27 @@ def generate_target(image_size, character_bbox):
         target = add_character(target, character_bbox[i])
 
     return target / 255.0, np.float32(target != 0)
+def generate_target_1(image_size,heatmap, character_bbox):
+    character_bbox = character_bbox.transpose(2, 1, 0)
 
+    height, width, channel = image_size
+
+    target = np.zeros([height, width], dtype=np.float32)
+
+    for i in range(character_bbox.shape[0]):
+        target = add_character_1(target, heatmap,character_bbox[i])
+
+    return target, np.float32(target != 0)
+def add_affinity_1(image,heatmap, bbox_1, bbox_2):
+    center_1, center_2 = np.mean(bbox_1, axis = 0), np.mean(bbox_2, axis = 0)
+    tl = np.mean([bbox_1[0], bbox_1[1], center_1], axis=0)
+    bl = np.mean([bbox_1[2], bbox_1[3], center_1], axis=0)
+    tr = np.mean([bbox_2[0], bbox_2[1], center_2], axis=0)
+    br = np.mean([bbox_2[2], bbox_2[3], center_2], axis=0)
+
+    affinity = np.array([tl, tr, br, bl])
+
+    return add_character_1(image,heatmap, affinity)
 def add_affinity(image, bbox_1, bbox_2):
     '''Lấy aff_heatmat của hai ký tự liền kề'''
 
@@ -111,11 +163,34 @@ def generate_affinity(image_size, character_bbox, text):
         total_letters += 1
 
     return target / 255.0, np.float32(target != 0)
+def generate_affinity_1(image_size,heatmap, character_bbox, text):
+    character_bbox = character_bbox.transpose(2, 1, 0)
+
+    height, width, channel = image_size
+
+    target = np.zeros([height, width], dtype=np.float32)
+
+    total_letters = 0
+
+    for word in text:
+        for char_num in range(len(word) - 1):
+            target = add_affinity_1(target,heatmap, character_bbox[total_letters].copy(),
+                                   character_bbox[total_letters + 1].copy())
+            total_letters += 1
+        total_letters += 1
+
+    return target, np.float32(target != 0)
 
 def procces_function(image, bbox, labels_text):
     image_shape = [image.shape[0], image.shape[1], image.shape[2]]
     weight, target = generate_target(image_shape, bbox.copy())
     weight_aff, target_aff = generate_affinity(image_shape, bbox.copy(), labels_text)
+    
+    return image, weight, target, weight_aff, target_aff
+def procces_function_1(image,heatmap, bbox, labels_text):
+    image_shape = [image.shape[0], image.shape[1], image.shape[2]]
+    weight, target = generate_target_1(image_shape,heatmap, bbox.copy())
+    weight_aff, target_aff = generate_affinity_1(image_shape,heatmap, bbox.copy(), labels_text)
     
     return image, weight, target, weight_aff, target_aff
 class SynthTextDataGenerator(tf.keras.utils.Sequence):
@@ -159,6 +234,69 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
             bbox = self.charBB[index]
             text = self.txt[index]
             _, weight, target, weight_aff, target_aff = procces_function(tmp, bbox, text)
+            label = np.dstack((weight, weight_aff))
+            if (self.augmentation):
+                res_img, res_label = rand_augment(tmp, label)
+            else:
+                res_img, res_label = tmp, label
+            res_img = cv2.resize(res_img, dsize = (self.input_size[0], self.input_size[1]), interpolation = cv2.INTER_LINEAR)
+            #res_img = normalizeMeanVariance(res_img) //replace by preprocessing function
+            res_label = cv2.resize(res_label, (self.input_size[0] // 2, self.input_size[1] // 2), interpolation = cv2.INTER_NEAREST)
+            X.append(res_img.astype(np.float32))
+            Y.append(res_label)
+        return np.array(X), np.array(Y)
+class SynthTextDataGeneratorUpdate(tf.keras.utils.Sequence):
+    def __init__(self, data_dir,input_size, batch_size=32, shuffle=True, augmentation= True):
+        self.augmentation = augmentation
+        self.mat=scio.loadmat(os.path.join(data_dir, 'gt.mat'))
+        self.imnames=self.mat['imnames'][0]
+        self.txt = self.mat['txt'][0]
+        for no, i in enumerate(self.txt):
+            all_words = []
+            for j in i:
+                all_words += [k for k in ' '.join(j.split('\n')).split() if k != '']
+            self.txt[no] = all_words
+        self.charBB = self.mat['charBB'][0]
+        self.input_size=input_size
+        self.data_dir = data_dir
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.num_samples = len(self.imnames)
+        self.indexes = np.arange(self.num_samples)
+        self.on_epoch_end()
+        self.heatmap = get_gaussian_heatmap(size=100)
+    def __data_augmentation(self, x):
+        ''' function for apply some data augmentation '''
+        x=tf.keras.preprocessing.image.random_brightness(x, [0.9,1.1])
+        x= tf.keras.preprocessing.image.random_contrast(x, [0.9,1.1])
+        x = tf.keras.preprocessing.image.random_flip_left_right(x)
+        x = tf.keras.preprocessing.image.random_flip_up_down(x)
+        x = tf.keras.preprocessing.image.random_rotation(x, 15, row_axis=0, col_axis=1, channel_axis=2)
+        x = tf.keras.preprocessing.image.random_shift(x, 0.1, 0.1, row_axis=0, col_axis=1, channel_axis=2)
+        x = tf.keras.preprocessing.image.random_shear(x, 0.1, row_axis=0, col_axis=1, channel_axis=2)
+        x = tf.keras.preprocessing.image.random_zoom(x, (0.9,1.1), row_axis=0, col_axis=1, channel_axis=2)
+        return x
+    def __len__(self):
+        return int(np.floor(self.num_samples / self.batch_size))
+
+    def __getitem__(self, index):
+        indexes = self.indexes[index * self.batch_size:(index + 1) * self.batch_size]
+        return self.__data_generation(indexes)
+
+    def on_epoch_end(self):
+        # self.indexes = np.arange(self.num_samples)
+        if self.shuffle:
+            np.random.shuffle(self.indexes)
+
+    def __data_generation(self, indexes):
+        X = []
+        Y = []
+        for i, index in enumerate(indexes):
+            image = plt.imread(os.path.join(self.data_dir, self.imnames[index][0]))
+            tmp = image
+            bbox = self.charBB[index]
+            text = self.txt[index]
+            _, weight, target, weight_aff, target_aff = procces_function_1(tmp,self.heatmap, bbox, text)
             label = np.dstack((weight, weight_aff))
             if (self.augmentation):
                 res_img, res_label = rand_augment(tmp, label)
