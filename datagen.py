@@ -26,21 +26,19 @@ def four_point_transform(image, pts):
     return warped
 
 def gen_gaussian():
-    sigma = 10
-    spread = 3
-    extent = int(spread * sigma)
-    gaussian_heatmap = np.zeros([2 * extent, 2 * extent], dtype = np.float32)
+    mean = 0
+    radius = 2.5
+    # a = 1 / (2 * np.pi * (radius ** 2))
+    a = 1.
+    x0, x1 = np.meshgrid(np.arange(-5, 5, 0.01), np.arange(-5, 5, 0.01))
+    x = np.append([x0.reshape(-1)], [x1.reshape(-1)], axis = 0).T
 
-    for i in range(2 * extent):
-        for j in range(2 * extent):
-            gaussian_heatmap[i, j] = 1 / 2 / np.pi / (sigma ** 2) * np.exp(
-                -1 / 2 * ((i - spread * sigma - 0.5) ** 2 + (j - spread * sigma - 0.5) ** 2) / (sigma ** 2))
-
-    gaussian_heatmap = (gaussian_heatmap / np.max(gaussian_heatmap) * 255).astype(np.uint8)
-
-    # threshhold_guassian = cv2.applyColorMap(gaussian_heatmap, cv2.COLORMAP_JET)
-    # cv2.imwrite(os.path.join("test_gaussian", 'test_gaussian.jpg'), threshhold_guassian)
-    
+    m0 = (x[:, 0] - mean) ** 2
+    m1 = (x[:, 1] - mean) ** 2
+    gaussian_heatmap = a * np.exp(-0.5 * (m0 + m1) / (radius ** 2))
+    gaussian_heatmap = gaussian_heatmap.reshape(len(x0), len(x1))
+    gaussian_heatmap = (gaussian_heatmap / np.max(gaussian_heatmap) * 255.0).astype(np.uint8)
+ 
     return gaussian_heatmap
 
 def add_character(image, bbox):
@@ -121,7 +119,7 @@ def procces_function(image, bbox, labels_text):
     
     return image, weight, target, weight_aff, target_aff
 class SynthTextDataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, data_dir,input_size, batch_size=32, shuffle=True,augmentation=False,):
+    def __init__(self, data_dir,input_size, batch_size=32, shuffle=True, augmentation= True,):
         self.augmentation = augmentation
         self.mat=scio.loadmat(os.path.join(data_dir, 'test_gt.mat'))
         self.imnames=self.mat['imnames'][0]
@@ -137,7 +135,7 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.num_samples = len(self.imnames)
-        self.indexes = np.arange(len(self.imnames))
+        self.indexes = np.arange(self.num_samples)
         self.on_epoch_end()
 
     def __len__(self):
@@ -148,7 +146,7 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
         return self.__data_generation(indexes)
 
     def on_epoch_end(self):
-        self.indexes = np.arange(self.num_samples)
+        # self.indexes = np.arange(self.num_samples)
         if self.shuffle:
             np.random.shuffle(self.indexes)
 
