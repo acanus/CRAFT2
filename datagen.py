@@ -136,7 +136,8 @@ class SynthTextDataGenerator(tf.keras.utils.Sequence):
         self.data_dir = data_dir
         self.batch_size = batch_size
         self.shuffle = shuffle
-        self.num_samples = 5
+        self.num_samples = len(self.imnames)
+        self.indexes = np.arange(len(self.imnames))
         self.on_epoch_end()
 
     def __len__(self):
