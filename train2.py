@@ -22,7 +22,7 @@ parser.add_argument('--model_name', type = str, default = os.environ.get('MODEL_
 # parser.add_argument('--model_name', type = str, default = 'vgg16')  # chọn model train
 parser.add_argument('--training_data_path', type = str, default = os.environ.get('DATASET_PATH')) # đường dẫn đến training data
 parser.add_argument('--suppress_warnings_and_error_messages', type = bool, default = True) # có hiển thị thông báo lỗi và cảnh báo trong quá trình đào tạo hay không (một số thông báo lỗi trong quá trình đào tạo dự kiến ​​sẽ xuất hiện do cách tạo các bản vá lỗi cho quá trình đào tạo)
-parser.add_argument('--load_weight', type = bool, default = False)
+parser.add_argument('--load_weight', type = bool, default = True)
 parser.add_argument('--test_dir', type = str, default = 'images')
 
 parser.add_argument('--vis', type = bool, default = True)
@@ -97,7 +97,7 @@ def main():
     # callbacks = [lr_scheduler,modelckpt]
     vis_callback = MyCallback(test_generator = train_data_generator)
     callbacks = [modelckpt,vis_callback]
-    optimizer = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
+    optimizer = tf.keras.optimizers.Adam(learning_rate = MyLRSchedule([50000, 200000], [FLAGS.init_learning_rate, FLAGS.init_learning_rate / 10. , FLAGS.init_learning_rate / 100.]))
     craft.compile(optimizer = optimizer,loss= MSE_OHEM_Loss,  run_eagerly = True)
     # craft.compile(optimizer = optimizer)
     #craft.build(input_shape=(FLAGS.input_size,FLAGS.input_size,3))
