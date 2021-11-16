@@ -47,10 +47,11 @@ class MyCallback(tf.keras.callbacks.Callback):
     def __init__(self,test_generator) -> None:
         super().__init__()
         self.test_generator=test_generator
+        self.num_samples = len(test_generator)
         self.fig, (self.ax1, self.ax2,self.ax3,self.ax4,self.ax5) = plt.subplots(1, 5,figsize=(12, 10))
     def on_batch_end(self, batch, logs=None):
-        if batch % 50 == 0:
-            data=self.test_generator.__getitem__(0)
+        if batch % 200 == 0:
+            data=self.test_generator.__getitem__(random.randint(0,self.num_samples-1))
             gt= data[1][0]
             image = np.expand_dims(data[0][0],0)
             result=self.model.predict(image)
@@ -91,7 +92,7 @@ def main():
     checkpoint_dir = os.path.dirname(checkpoint_path)
     latest = tf.train.latest_checkpoint(checkpoint_dir)
     # lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_decay)
-    modelckpt = tf.keras.callbacks.ModelCheckpoint(filepath = checkpoint_path, save_freq = 1000 * FLAGS.batch_size,  save_weights_only = True, verbose = 1)
+    modelckpt = tf.keras.callbacks.ModelCheckpoint(filepath = checkpoint_path, save_freq = 100 * FLAGS.batch_size,  save_weights_only = True, verbose = 1)
     craft.save_weights(checkpoint_path.format(epoch = 0))
     # callbacks = [lr_scheduler,modelckpt]
     vis_callback = MyCallback(test_generator = train_data_generator)
