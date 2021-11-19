@@ -1,3 +1,4 @@
+from tensorflow.python.keras.backend import print_tensor
 from lib import *
 from affinity_util import reorder_points
 from img_util import load_sample, img_normalize, load_image
@@ -20,7 +21,6 @@ class Datagenerator(tf.keras.utils.Sequence):
         self.img_size = img_size
         self.batch_size = batch_size
         self.is_train = is_train
-        self.init_sample(flag = True)
 
     def __len__(self):
         return math.ceil(np.sum(self.sample_count_list) / self.batch_size)
@@ -40,12 +40,40 @@ class Datagenerator(tf.keras.utils.Sequence):
         for i in range(self.batch_size):
             if self.is_train:
                 sample_mark = np.random.choice(self.sample_mark_list, p = self.train_sample_probs)
+
+                if sample_mark == self.sample_mark_list[0]:
+                    new_sample_list = list()
+
+                    if len(self.train_sample_lists[sample_mark][self.sample_idx_list[sample_mark]]) == 5:
+                        img_path, word_boxes, words, char_boxes_list, _ = self.train_sample_lists[sample_mark][self.sample_idx_list[sample_mark]]
+                    else:
+                        img_path, word_boxes, words, char_boxes_list = self.train_sample_lists[sample_mark][self.sample_idx_list[sample_mark]]
+                    confidence_list = [1] * len(word_boxes)
+                    
+                elif sample_mark == self.sample_mark_list[1]:
+                    if self.fakes[sample_mark]:
+
+                        new_sample_list = list()
+
+                        if len(self.train_sample_lists[sample_mark][self.sample_idx_list[sample_mark]]) == 5:
+                            img_path, word_boxes, words, char_boxes_list, _ = self.train_sample_lists[sample_mark][self.sample_idx_list[sample_mark]]
+                        else:
+                            img_path, word_boxes, words, char_boxes_list = self.train_sample_lists[sample_mark][self.sample_idx_list[sample_mark]]
+                        
+                        img = load_image(img_path)
+                        char_boxes_list = list()
+
+                        confidence_list = list()
+
+                        for word_box, word in zip(word_boxes, words):
+                            char_boxes, confidence = self.fake_char_boxes(img, word_box, len(word))
+                            char_boxes_list.append(char_boxes)
+                            confidence_list.append(confidence)
             else:
                 sample_mark = np.random.choice(self.sample_mark_list, p = self.train_sample_probs)
                 if self.fakes[sample_mark]:
                     break
 
-            img_path, word_boxes, words, char_boxes_list, confidence_list = self.train_sample_lists[sample_mark][self.sample_idx_list[sample_mark]]
             self.sample_idx_list[sample_mark] += 1
             if self.sample_idx_list[sample_mark] >= self.sample_count_list[sample_mark]:
                 self.sample_idx_list[sample_mark] = 0
@@ -138,44 +166,3 @@ class Datagenerator(tf.keras.utils.Sequence):
 
         return region_boxes, confidence
 
-    def init_sample(self, flag = False):
-        for sample_mark in self.sample_mark_list:
-            if self.fakes[sample_mark]:
-                sample_list = self.train_sample_lists[sample_mark]
-                new_sample_list = list()
-                i = 0
-                for sample in sample_list:
-                    if len(sample) == 5:
-                        img_path, word_boxes, words, _, _ = sample
-                    else:
-                        img_path, word_boxes, words, _ = sample
-                    img = load_image(img_path)
-                    char_boxes_list = list()
-
-                    confidence_list = list()
-                    
-                    for word_box, word in zip(word_boxes, words):
-                        char_boxes, confidence = self.fake_char_boxes(img, word_box, len(word))
-                        char_boxes_list.append(char_boxes)
-                        confidence_list.append(confidence)
-                    i += 1
-                    print(i)
-                    new_sample_list.append([img_path, word_boxes, words, char_boxes_list, confidence_list])
-
-                self.train_sample_lists[sample_mark] = new_sample_list
-            elif flag:
-                sample_list = self.train_sample_lists[sample_mark]
-                new_sample_list = list()
-
-                for sample in sample_list:
-                    if len(sample) == 5:
-                        img_path, word_boxes, words, char_boxes_list, _ = sample
-                    else:
-                        img_path, word_boxes, words, char_boxes_list = sample
-                    confidence_list = [1] * len(word_boxes)
-                    new_sample_list.append([img_path, word_boxes, words, char_boxes_list, confidence_list])
-
-                self.train_sample_lists[sample_mark] = new_sample_list
-
-    def on_epoch_end(self):
-        self.init_sample(False)

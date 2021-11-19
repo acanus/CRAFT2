@@ -10,12 +10,12 @@ parser.add_argument('--img_size', type = int, default = 600)  # kích thước h
 parser.add_argument('--init_learning_rate', type = float, default = 0.0001)  # tỷ lệ học tập ban đầu
 parser.add_argument('--lr_decay_rate', type = float, default = 0.94) # tỷ lệ phân rã cho tỷ lệ học tập
 parser.add_argument('--lr_decay_steps', type = int, default = 65) # số bước mà sau đó tốc độ học được giảm dần theo tốc độ giảm dần
-parser.add_argument('--batch_size', type = int, default = 4)  # kích thước lô để đào tạo
+parser.add_argument('--batch_size', type = int, default = 2)  # kích thước lô để đào tạo
 parser.add_argument('--max_epochs', type = int, default = 800)  # số kỷ nguyên tối đa
 parser.add_argument('--gpu_list', type = str, default = '0')  # list of gpus to use
 parser.add_argument('--use_fake', type = bool, default = True)  # list of gpus to use
 parser.add_argument('--checkpoint_path', type = str, default = 'tmp') # # đường dẫn đến một thư mục để lưu các điểm kiểm tra của mô hình trong quá trình đào tạo
-parser.add_argument('--model_name', type = str, default = "resnet50")  # chọn model train
+parser.add_argument('--model_name', type = str, default = "vgg16")  # chọn model train
 
 # path to training data
 parser.add_argument('--truth_data_path', type = str, default = 'datasets/synthtext/SynthText')
@@ -26,9 +26,19 @@ parser.add_argument('--val_data_path', type = str, default = 'datasets/ICDAR_15'
 # parser.add_argument('--val_data_path', type = str, default = 'datasets\ICDAR_13')  # Đường dẫn dữ liệu đánh giá
 parser.add_argument('--max_image_size', type = int, default = 1280)
 parser.add_argument('--vis', type = bool, default = True)
-parser.add_argument('--vis_num_batch_size', type = bool, default = 5) # cứ sao 50 batch size sẽ hiển thị kết quả train 1 lần
+parser.add_argument('--vis_num_batch_size', type = bool, default = 10) # cứ sao 50 batch size sẽ hiển thị kết quả train 1 lần
 parser.add_argument('--load_weight', type = bool, default = False)
 FLAGS = parser.parse_args()
+
+class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+
+    def __init__(self, boundaries, learning_rate):
+        self.boundaries = boundaries
+        self.learning_rate = learning_rate
+
+    def __call__(self, step):
+        learning_rate_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(self.boundaries, self.learning_rate)
+        return  learning_rate_fn(step)
 
 def lr_decay(epoch):
     return FLAGS.init_learning_rate * np.power(FLAGS.lr_decay_rate, epoch // FLAGS.lr_decay_steps)
@@ -56,6 +66,7 @@ def main():
 
     # Optimizer
     opt = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
+    # opt = tf.keras.optimizers.Adam(learning_rate = MyLRSchedule([2500, 10000], [FLAGS.init_learning_rate, FLAGS.init_learning_rate / 10. , FLAGS.init_learning_rate / 100.]))
 
     # Complie model
     print("[INFO] Biên dịch mô hình...")
@@ -78,13 +89,12 @@ def main():
     else:
         train_generator = Datagenerator(craft, gaus, [train_sample_list], [1], [False], FLAGS.img_size, FLAGS.batch_size)
     
-    # tạo dữ liệu đánh giá
-    print("[INFO] Tải dữ liệu đánh giá ICDAR_15...")
-    
     # tạo kiểm soát mô hình
+    lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_decay)
     modelckpt = tf.keras.callbacks.ModelCheckpoint(filepath = checkpoint_path, save_freq = 50 * FLAGS.batch_size,  save_weights_only = True, verbose = 1)
 
     # steps per epoch
+    # steps_per_epoch = len(train_generator)
     steps_per_epoch = 1000
 
     print("[INFO] Huấn luyện mạng...")
@@ -92,7 +102,7 @@ def main():
                 steps_per_epoch = steps_per_epoch,
                 initial_epoch = 0,
                 epochs = FLAGS.max_epochs,
-                callbacks = [modelckpt],
+                callbacks = [lr_scheduler, modelckpt],
                 )
 
     # lưu lại lịch sử đào tạo
