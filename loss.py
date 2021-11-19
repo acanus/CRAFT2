@@ -1,61 +1,46 @@
 from lib import *
-def weighted_bce(y_true, y_pred):
-    loss_every_sample = []
-    batch_size = y_true.get_shape().as_list()[0]
-    for i in range(batch_size):
-        weights = (y_true[i]*50) + 1.       
-        bce = tf.keras.losses.binary_crossentropy(y_true[i], y_pred[i])
-        weighted_bce = tf.math.reduce_mean(tf.math.multiply(weights[:,:,0],bce[0]))
-        weighted_bce1 = tf.math.reduce_mean(tf.math.multiply(weights[:,:,1],bce[1]))
-        loss_every_sample.append(weighted_bce*0.5+weighted_bce1*0.5)
-    return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
 
-def MSE_OHEM_Loss(y_true, y_pred):
-    loss_every_sample = []
-    batch_size = y_true.get_shape().as_list()[0]
-    for i in range(batch_size):
-        output_img = tf.reshape(y_pred[i], [-1])
-        target_img = tf.reshape(y_true[i], [-1])
-        positive_mask = tf.cast(tf.greater(target_img, 0), dtype = tf.float32)
-        sample_loss = tf.math.square(tf.math.subtract(output_img, target_img))
-        
-        num_all = output_img.get_shape().as_list()[0]
-        num_positive = tf.cast(tf.math.reduce_sum(positive_mask), dtype = tf.int32)
-        
-        positive_loss = tf.math.multiply(sample_loss, positive_mask)
-        positive_loss_m = tf.math.reduce_sum(positive_loss)/tf.cast(num_positive, dtype = tf.float32)
-        nagative_loss = tf.math.multiply(sample_loss, (1 - positive_mask))
-        # nagative_loss_m = tf.math.reduce_sum(nagative_loss)/(num_all - num_positive)
+def ohem(loss, fg_mask, bg_mask, negative_ratio = 3.):
+    fg_num = tf.math.reduce_sum(fg_mask)
+    bg_num = tf.math.reduce_sum(bg_mask)
 
-        k = num_positive * 3     
-        k = tf.cond((k + num_positive) > num_all, lambda: tf.cast((num_all - num_positive), dtype = tf.int32), lambda: k)
-        k = tf.cond(k > 0, lambda: k, lambda: k + 1)   
-        nagative_loss_topk, _ = tf.math.top_k(nagative_loss, k)
-        res = tf.cond(k < 10, lambda: tf.math.reduce_mean(sample_loss),
-                              lambda: positive_loss_m + tf.math.reduce_sum(nagative_loss_topk)/tf.cast(k, dtype=tf.float32))
-        loss_every_sample.append(res)
+    neg_num = tf.math.maximum(tf.cast(fg_num * negative_ratio, dtype = tf.int32), tf.constant(10000, dtype = tf.int32))
+    neg_num = tf.math.minimum(tf.cast(bg_num, dtype = tf.int32), neg_num)
 
-    return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
+    neg_loss = loss * bg_mask
+    vals, _ = tf.math.top_k(tf.reshape(neg_loss, shape = [-1]), k = neg_num)
+    bg_bool_mask = tf.cast(bg_mask, dtype = tf.bool)
+    hard_bg_bool_mask = tf.math.logical_and(bg_bool_mask, tf.math.greater_equal(neg_loss, vals[-1]))
+    hard_bg_mask = tf.cast(hard_bg_bool_mask, dtype = tf.float32)
 
-def mse(y_true, y_pred): # vì dự liệu là chính xác từng ký tự nên confidence = 1... ta áp dụng tính mse
-    loss_every_sample = []
-    batch_size = y_true.get_shape().as_list()[0]
-    for i in range(batch_size):
-        output_img = tf.reshape(y_pred[i], [-1])
-        target_img = tf.reshape(y_true[i], [-1])
-        loss = tf.math.square(tf.math.subtract(target_img, output_img))
-        loss_every_sample.append(tf.math.reduce_mean(loss))
+    return hard_bg_mask
 
-    return tf.math.reduce_mean(tf.convert_to_tensor(loss_every_sample))
+def batch_ohem(loss, fg_mask, bg_mask, negative_ratio = 3.):
+    return tf.map_fn(lambda x: ohem(x[0], x[1], x[2], negative_ratio), elems = [loss, fg_mask, bg_mask], dtype = tf.float32)
 
-# if __name__ == '__main__':
-#     output_imgs = tf.constant([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], dtype=tf.float32)
-#     output_imgs = tf.reshape(output_imgs, (2, 1, 2, 2))
-#     # target_imgs = tf.constant([[[1.1, 2.1], [3.5, 4.1]], [[5.2, 6.5], [7.6, 8.5]]], dtype=tf.float32)
-#     target_imgs = tf.constant([[[25, 25], [30, 35]], [[40, 42], [50, 53]]], dtype=tf.float32)
-#     target_imgs = tf.reshape(target_imgs, (2, 1, 2, 2))
-    
-#     m = mse(output_imgs, target_imgs)
-#     print(m)
-#     r = MSE_OHEM_Loss(output_imgs, target_imgs)
-#     print(r)
+def huber_loss(y_true, y_pred, delta = 0.5):
+    residual = tf.math.abs(y_true - y_pred)
+    large_loss = 0.5 * tf.math.pow(y_true - y_pred, 2)
+    small_loss = delta * residual - 0.5 * tf.math.square(delta)
+    return tf.where(tf.math.less(residual, delta), large_loss, small_loss)
+
+def craft_huber_loss(region_true, affinity_true, region_pred, affinity_pred, confidence, fg_mask, bg_mask):
+    region_true, affinity_true, region_pred, affinity_pred, confidence, fg_mask, bg_mask = region_true, affinity_true, region_pred, affinity_pred, confidence, fg_mask, bg_mask
+    eps = 1e-5
+    confidence = confidence
+
+    l_region = huber_loss(region_true, region_pred)
+    l_region = l_region * confidence
+
+    l_affinity = huber_loss(affinity_true, affinity_pred)
+    l_affinity = l_affinity * confidence
+
+    l_total = l_region + l_affinity
+
+    # hard_bg_mask = ohem(l_total, fg_mask, bg_mask)
+    hard_bg_mask = batch_ohem(l_total, fg_mask, bg_mask)
+    # hard_bg_mask = bg_mask
+    train_mask = hard_bg_mask + fg_mask
+    l_total = l_total * train_mask
+
+    return tf.math.reduce_sum(l_total) / (tf.math.reduce_sum(confidence * train_mask) + eps)

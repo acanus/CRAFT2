@@ -1,6 +1,5 @@
 from lib import *
 
-# borrowed from https://github.com/lengstrom/fast-style-transfer/blob/master/src/utils.py
 def get_files(img_dir):
     imgs, masks, xmls = list_files(img_dir)
     return imgs, masks, xmls
@@ -21,10 +20,10 @@ def list_files(in_path):
                 gt_files.append(os.path.join(dirpath, file))
             elif ext == '.zip':
                 continue
-
     return img_files, mask_files, gt_files
 
-def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=None, s = False):
+
+def saveResult(img_file, img, boxes, dirname = './result/', verticals = None, texts = None):
         """ save text detection result one by one
         Args:
             img_file (str): image file name
@@ -40,12 +39,8 @@ def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=
         filename, file_ext = os.path.splitext(os.path.basename(img_file))
 
         # result directory
-        if s:
-            res_file = dirname + "res_" + filename + '_word.txt'
-            res_img_file = dirname + "res_" + filename + '_word.jpg'
-        else:
-            res_file = dirname + "res_" + filename + '_char.txt'
-            res_img_file = dirname + "res_" + filename + '_char.jpg'
+        res_file = dirname + "res_" + filename + '.txt'
+        res_img_file = dirname + "res_" + filename + '.jpg'
 
         if not os.path.isdir(dirname):
             os.mkdir(dirname)
@@ -57,7 +52,7 @@ def saveResult(img_file, img, boxes, dirname='./result/', verticals=None, texts=
                 f.write(strResult)
 
                 poly = poly.reshape(-1, 2)
-                cv2.polylines(img, [poly.reshape((-1, 1, 2))], True, color = (0, 0, 255), thickness=1)
+                cv2.polylines(img, [poly.reshape((-1, 1, 2))], True, color = (0, 0, 255), thickness = 2)
                 ptColor = (0, 255, 255)
                 if verticals is not None:
                     if verticals[i]:
