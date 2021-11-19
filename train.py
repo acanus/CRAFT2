@@ -40,9 +40,6 @@ class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         learning_rate_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(self.boundaries, self.learning_rate)
         return  learning_rate_fn(step)
 
-# def lr_decay(epoch):
-#     return FLAGS.init_learning_rate * np.power(FLAGS.lr_decay_rate, epoch // FLAGS.lr_decay_steps)
-
 def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
 
@@ -90,7 +87,6 @@ def main():
         train_generator = Datagenerator(craft, gaus, [train_sample_list], [1], [False], FLAGS.img_size, FLAGS.batch_size)
     
     # tạo kiểm soát mô hình
-    # lr_scheduler = tf.keras.callbacks.LearningRateScheduler(lr_decay)
     modelckpt = tf.keras.callbacks.ModelCheckpoint(filepath = checkpoint_path, save_freq = 50 * FLAGS.batch_size,  save_weights_only = True, verbose = 1)
 
     # steps per epoch
