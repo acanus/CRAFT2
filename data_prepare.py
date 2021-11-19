@@ -143,7 +143,7 @@ class Datagenerator(tf.keras.utils.Sequence):
             if self.fakes[sample_mark]:
                 sample_list = self.train_sample_lists[sample_mark]
                 new_sample_list = list()
-
+                i = 0
                 for sample in sample_list:
                     if len(sample) == 5:
                         img_path, word_boxes, words, _, _ = sample
@@ -158,7 +158,8 @@ class Datagenerator(tf.keras.utils.Sequence):
                         char_boxes, confidence = self.fake_char_boxes(img, word_box, len(word))
                         char_boxes_list.append(char_boxes)
                         confidence_list.append(confidence)
-
+                    i += 1
+                    print(i)
                     new_sample_list.append([img_path, word_boxes, words, char_boxes_list, confidence_list])
 
                 self.train_sample_lists[sample_mark] = new_sample_list
