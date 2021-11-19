@@ -62,5 +62,5 @@ if __name__ == '__main__':
     np.random.shuffle(craft_sample_list)
 
     with open(r'datasets\synthtext\SynthText\train_gt.pkl', 'wb') as pkl_file:
-        pickle.dump(craft_sample_list[:int(len(craft_sample_list) / 10)], pkl_file)
+        pickle.dump(craft_sample_list[:int(len(craft_sample_list) / 80)], pkl_file)
 

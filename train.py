@@ -7,7 +7,7 @@ from net import CRAFT_model
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--img_size', type = int, default = 600)  # kích thước hình ảnh để đào tạo
-parser.add_argument('--init_learning_rate', type = float, default = 0.001)  # tỷ lệ học tập ban đầu
+parser.add_argument('--init_learning_rate', type = float, default = 0.0001)  # tỷ lệ học tập ban đầu
 parser.add_argument('--lr_decay_rate', type = float, default = 0.94) # tỷ lệ phân rã cho tỷ lệ học tập
 parser.add_argument('--lr_decay_steps', type = int, default = 65) # số bước mà sau đó tốc độ học được giảm dần theo tốc độ giảm dần
 parser.add_argument('--batch_size', type = int, default = 4)  # kích thước lô để đào tạo
@@ -30,15 +30,8 @@ parser.add_argument('--vis_num_batch_size', type = bool, default = 5) # cứ sao
 parser.add_argument('--load_weight', type = bool, default = False)
 FLAGS = parser.parse_args()
 
-class MyLRSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
-
-    def __init__(self, boundaries, learning_rate):
-        self.boundaries = boundaries
-        self.learning_rate = learning_rate
-
-    def __call__(self, step):
-        learning_rate_fn = tf.keras.optimizers.schedules.PiecewiseConstantDecay(self.boundaries, self.learning_rate)
-        return  learning_rate_fn(step)
+def lr_decay(epoch):
+    return FLAGS.init_learning_rate * np.power(FLAGS.lr_decay_rate, epoch // FLAGS.lr_decay_steps)
 
 def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = FLAGS.gpu_list
@@ -62,8 +55,7 @@ def main():
         craft.load_weights(latest)
 
     # Optimizer
-    # opt = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
-    opt = tf.keras.optimizers.Adam(learning_rate = MyLRSchedule([2500, 10000], [FLAGS.init_learning_rate, FLAGS.init_learning_rate / 10. , FLAGS.init_learning_rate / 100.]))
+    opt = tf.keras.optimizers.Adam(FLAGS.init_learning_rate)
 
     # Complie model
     print("[INFO] Biên dịch mô hình...")
@@ -86,11 +78,14 @@ def main():
     else:
         train_generator = Datagenerator(craft, gaus, [train_sample_list], [1], [False], FLAGS.img_size, FLAGS.batch_size)
     
+    # tạo dữ liệu đánh giá
+    print("[INFO] Tải dữ liệu đánh giá ICDAR_15...")
+    
     # tạo kiểm soát mô hình
     modelckpt = tf.keras.callbacks.ModelCheckpoint(filepath = checkpoint_path, save_freq = 50 * FLAGS.batch_size,  save_weights_only = True, verbose = 1)
 
     # steps per epoch
-    steps_per_epoch = len(train_generator)
+    steps_per_epoch = 1000
 
     print("[INFO] Huấn luyện mạng...")
     H = craft.fit(train_generator,
