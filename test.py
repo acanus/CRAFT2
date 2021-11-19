@@ -18,6 +18,7 @@ parser.add_argument('--link_threshold', default = 0.4, type = float, help = 'lin
 parser.add_argument('--canvas_size', default = 1280, type = int, help = 'image size for inference')
 parser.add_argument('--mag_ratio', default = 1., type = float, help = 'image magnification ratio')
 parser.add_argument('--show_time', default = True, action = 'store_true', help='show processing time')
+parser.add_argument('--s', default = True, action = 'store_true', help='hiển thị kết quả ký tự hay từ, True: từ, False: ký tự')
 parser.add_argument('--test_folder', default = r'datasets\ICDAR_15\test',
                     type = str, help = 'folder path to input images')
 
@@ -27,7 +28,7 @@ result_folder = 'results/'
 if not os.path.isdir(result_folder):
     os.mkdir(result_folder)
 
-def predict(model, image, text_threshold, link_threshold, low_text):
+def predict(model, image, text_threshold, link_threshold, low_text, s):
     t0 = time.time()
 
     # resize
@@ -49,7 +50,7 @@ def predict(model, image, text_threshold, link_threshold, low_text):
     t1 = time.time()
 
     # Post-processing
-    boxes = getDetBoxes(score_text, score_link, text_threshold, link_threshold, low_text)
+    boxes = getDetBoxes(score_text, score_link, text_threshold, link_threshold, low_text, s)
     boxes = adjustResultCoordinates(boxes, ratio_w, ratio_h)
 
     t1 = time.time() - t1
@@ -88,7 +89,7 @@ def test():
         print("Test image {:d}/{:d}: {:s}".format(k + 1, len(image_list), image_path), end='\r')
         image = load_image(image_path)
         start_time = time.time()
-        bboxes, score_text = predict(model, image, FLAGS.text_threshold, FLAGS.link_threshold, FLAGS.low_text)
+        bboxes, score_text = predict(model, image, FLAGS.text_threshold, FLAGS.link_threshold, FLAGS.low_text, FLAGS.s)
         print(time.time() * 1000 - start_time * 1000)
 
         # save score text
